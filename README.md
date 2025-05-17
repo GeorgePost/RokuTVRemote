@@ -1,6 +1,6 @@
 # Roku Web Remote
 
-A web-based remote control application for Roku devices, built with React and Material-UI.
+A web-based remote control application for Roku devices, built with React and Material-UI. Made with Cursor AI.
 
 ## Features
 
