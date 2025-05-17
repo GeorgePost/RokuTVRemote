@@ -1,6 +1,17 @@
 // Service worker to handle Roku HTTP requests
+self.addEventListener('install', (event) => {
+  console.log('Service Worker installing...');
+  event.waitUntil(self.skipWaiting());
+});
+
+self.addEventListener('activate', (event) => {
+  console.log('Service Worker activating...');
+  event.waitUntil(self.clients.claim());
+});
+
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
+  console.log('Service Worker intercepted request:', url.pathname);
   
   // Only intercept Roku-related requests
   if (url.pathname.includes('/roku/')) {
@@ -12,9 +23,16 @@ async function handleRokuRequest(request) {
   try {
     // Extract the actual Roku IP and command from the URL
     const url = new URL(request.url);
-    const params = url.pathname.split('/roku/')[1].split('/');
+    const rokuPath = url.pathname.split('/roku/')[1];
+    console.log('Processing Roku request:', rokuPath);
+    
+    if (!rokuPath) {
+      throw new Error('Invalid Roku request path');
+    }
+
+    const params = rokuPath.split('/');
     const ip = params[0];
-    const command = params.slice(1).join('/'); // Join the rest of the path
+    const command = params.slice(1).join('/');
     
     // Construct the actual Roku request URL with port 8060
     const rokuUrl = `http://${ip}:8060/${command}`;
@@ -25,14 +43,16 @@ async function handleRokuRequest(request) {
       method: request.method,
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Connection': 'close' // Close connection after response
+        'Connection': 'close'
       },
-      // Add a timeout
       signal: AbortSignal.timeout(2000)
     });
 
+    const responseText = await response.text();
+    console.log('Received response:', response.status, responseText.substring(0, 100));
+
     // Return the response
-    return new Response(await response.text(), {
+    return new Response(responseText, {
       status: response.status,
       headers: {
         'Content-Type': response.headers.get('Content-Type'),
