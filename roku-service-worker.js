@@ -14,17 +14,21 @@ async function handleRokuRequest(request) {
     const url = new URL(request.url);
     const params = url.pathname.split('/roku/')[1].split('/');
     const ip = params[0];
-    const command = params[1];
+    const command = params.slice(1).join('/'); // Join the rest of the path
     
-    // Construct the actual Roku request URL
+    // Construct the actual Roku request URL with port 8060
     const rokuUrl = `http://${ip}:8060/${command}`;
+    console.log('Sending request to:', rokuUrl);
     
     // Forward the request to the Roku device
     const response = await fetch(rokuUrl, {
       method: request.method,
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      }
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Connection': 'close' // Close connection after response
+      },
+      // Add a timeout
+      signal: AbortSignal.timeout(2000)
     });
 
     // Return the response
@@ -36,7 +40,11 @@ async function handleRokuRequest(request) {
       }
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    console.error('Roku request error:', error);
+    return new Response(JSON.stringify({ 
+      error: error.message,
+      details: 'Make sure your Roku device is powered on and on port 8060'
+    }), {
       status: 500,
       headers: {
         'Content-Type': 'application/json',
