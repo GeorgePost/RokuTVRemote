@@ -1,15 +1,15 @@
 {
   "files": {
     "main.css": "/RokuTVRemote/static/css/main.dc282a1f.css",
-    "main.js": "/RokuTVRemote/static/js/main.37a97cc2.js",
+    "main.js": "/RokuTVRemote/static/js/main.9fcb64ad.js",
     "static/js/453.3e034e1b.chunk.js": "/RokuTVRemote/static/js/453.3e034e1b.chunk.js",
     "index.html": "/RokuTVRemote/index.html",
     "main.dc282a1f.css.map": "/RokuTVRemote/static/css/main.dc282a1f.css.map",
-    "main.37a97cc2.js.map": "/RokuTVRemote/static/js/main.37a97cc2.js.map",
+    "main.9fcb64ad.js.map": "/RokuTVRemote/static/js/main.9fcb64ad.js.map",
     "453.3e034e1b.chunk.js.map": "/RokuTVRemote/static/js/453.3e034e1b.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.dc282a1f.css",
-    "static/js/main.37a97cc2.js"
+    "static/js/main.9fcb64ad.js"
   ]
 }
