@@ -3,17 +3,25 @@ class RokuService {
     this.deviceIP = localStorage.getItem('rokuDeviceIP') || '';
     this.deviceInfo = JSON.parse(localStorage.getItem('rokuDeviceInfo') || 'null');
     this.isScanning = false;
+    this.scanAbortController = null;
     this.isHttps = window.location.protocol === 'https:';
     
     // Register service worker
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/roku-service-worker.js')
+      navigator.serviceWorker.register('/RokuTVRemote/roku-service-worker.js')
         .then(registration => {
           console.log('Service Worker registered:', registration);
+          // Wait for the service worker to be ready
+          return navigator.serviceWorker.ready;
+        })
+        .then(() => {
+          console.log('Service Worker is active');
         })
         .catch(error => {
           console.error('Service Worker registration failed:', error);
         });
+    } else {
+      console.error('Service Worker is not supported in this browser');
     }
   }
 
@@ -40,23 +48,41 @@ class RokuService {
     }
   }
 
-  async testConnection(ip) {
+  async testConnection(ip, signal) {
     try {
-      const response = await fetch(`/roku/${ip}/query/device-info`, {
+      console.log(`Testing connection to Roku at ${ip}:8060`);
+      
+      // Wait for service worker to be ready
+      if (navigator.serviceWorker && !navigator.serviceWorker.controller) {
+        console.log('Waiting for service worker to be ready...');
+        await new Promise(resolve => {
+          navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true });
+        });
+      }
+
+      const response = await fetch(`/RokuTVRemote/roku/${ip}/query/device-info`, {
         method: 'GET',
-        timeout: 2000
+        signal,
+        headers: {
+          'Connection': 'close'
+        }
       });
       
       if (!response.ok) {
-        throw new Error('Could not connect to Roku device');
+        throw new Error(`Could not connect to Roku device at ${ip}:8060`);
       }
 
+      console.log(`Successfully connected to ${ip}:8060`);
       const deviceInfoText = await response.text();
       return {
         success: true,
         deviceInfo: deviceInfoText
       };
     } catch (error) {
+      console.error(`Connection test failed for ${ip}:`, error);
+      if (error.name === 'AbortError') {
+        throw error;
+      }
       return {
         success: false,
         error: error.message
@@ -64,8 +90,35 @@ class RokuService {
     }
   }
 
+  async getLocalIPAddress() {
+    try {
+      const pc = new RTCPeerConnection({ iceServers: [] });
+      pc.createDataChannel('');
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      
+      return new Promise((resolve) => {
+        pc.onicecandidate = (ice) => {
+          if (!ice.candidate) return;
+          
+          // Look for IPv4 local address
+          const localIP = ice.candidate.candidate.match(/(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)([0-9]{1,3}\.)[0-9]{1,3}/);
+          if (localIP) {
+            pc.close();
+            const baseIP = localIP[0].split('.').slice(0, 3).join('.');
+            resolve(baseIP);
+          }
+        };
+      });
+    } catch (error) {
+      console.warn('Could not get local IP:', error);
+      return null;
+    }
+  }
+
   async scanNetwork() {
     if (this.isScanning) {
+      console.log('Scan already in progress');
       return null;
     }
 
@@ -73,62 +126,109 @@ class RokuService {
     console.log('Starting network scan for Roku devices...');
 
     try {
-      // Common local IP ranges
-      const ranges = [
+      // Cancel any existing scan
+      if (this.scanAbortController) {
+        console.log('Cancelling previous scan');
+        this.scanAbortController.abort();
+      }
+      this.scanAbortController = new AbortController();
+
+      // Get local IP range
+      const localIPBase = await this.getLocalIPAddress();
+      console.log('Detected local network:', localIPBase);
+
+      // Try stored IP first
+      if (this.deviceIP) {
+        console.log('Trying stored IP:', this.deviceIP);
+        try {
+          const testResult = await this.testConnection(this.deviceIP, this.scanAbortController.signal);
+          if (testResult.success) {
+            console.log('Successfully connected to stored device IP');
+            this.isScanning = false;
+            return this.deviceIP;
+          }
+        } catch (error) {
+          if (error.name === 'AbortError') throw error;
+          console.log('Stored IP failed:', error);
+        }
+      }
+
+      // Prioritize ranges based on local IP
+      let ranges = [];
+      if (localIPBase) {
+        ranges.push(localIPBase);
+      }
+      // Add fallback ranges
+      ranges = ranges.concat([
         '192.168.1',
         '192.168.0',
         '10.0.0',
         '10.0.1',
         '172.16.0'
-      ];
+      ].filter(range => range !== localIPBase));
 
-      // Try stored IP first
-      if (this.deviceIP) {
-        const testResult = await this.testConnection(this.deviceIP);
-        if (testResult.success) {
-          console.log('Successfully connected to stored device IP');
-          this.isScanning = false;
-          return this.deviceIP;
-        }
-      }
+      console.log('Scanning IP ranges:', ranges);
 
-      // Scan common ports in parallel
+      const batchSize = 25;
+      const batchTimeout = 2000;
+
       for (const range of ranges) {
-        const promises = [];
+        console.log(`Scanning range: ${range}`);
+        const ipBatches = [];
+        
         for (let i = 1; i < 255; i++) {
           const ip = `${range}.${i}`;
-          promises.push(this.testConnection(ip));
+          ipBatches.push(ip);
           
-          // Test 10 IPs at a time to avoid overwhelming the browser
-          if (promises.length >= 10) {
-            const results = await Promise.all(promises);
-            const foundDevice = results.find(result => result.success);
-            if (foundDevice) {
-              const deviceIP = `${range}.${i - promises.length + results.indexOf(foundDevice) + 1}`;
-              console.log('Found Roku device at:', deviceIP);
-              this.deviceIP = deviceIP;
+          if (ipBatches.length === batchSize || i === 254) {
+            try {
+              console.log(`Testing batch of ${ipBatches.length} IPs in range ${range}`);
+              const batchPromises = ipBatches.map(ip => 
+                this.testConnection(ip, this.scanAbortController.signal)
+                  .then(result => ({ ip, result }))
+                  .catch(error => {
+                    if (error.name === 'AbortError') throw error;
+                    return { ip, result: { success: false } };
+                  })
+              );
               
-              // Parse device info
-              const deviceInfoText = foundDevice.deviceInfo;
-              const modelName = deviceInfoText.match(/<model-name>([^<]+)<\/model-name>/)?.[1];
-              const modelNumber = deviceInfoText.match(/<model-number>([^<]+)<\/model-number>/)?.[1];
-              const isTV = deviceInfoText.includes('<is-tv>true</is-tv>');
-              const requiresPairing = deviceInfoText.includes('<requires-pairing>true</requires-pairing>');
+              const results = await Promise.race([
+                Promise.all(batchPromises),
+                new Promise((_, reject) => 
+                  setTimeout(() => reject(new Error('batch timeout')), batchTimeout)
+                )
+              ]);
 
-              this.deviceInfo = {
-                model: modelName,
-                number: modelNumber,
-                isTV,
-                requiresPairing
-              };
+              const foundDevice = results.find(({ result }) => result.success);
+              if (foundDevice) {
+                console.log('Found Roku device at:', foundDevice.ip);
+                const deviceInfoText = foundDevice.result.deviceInfo;
+                const modelName = deviceInfoText.match(/<model-name>([^<]+)<\/model-name>/)?.[1];
+                const modelNumber = deviceInfoText.match(/<model-number>([^<]+)<\/model-number>/)?.[1];
+                const isTV = deviceInfoText.includes('<is-tv>true</is-tv>');
+                const requiresPairing = deviceInfoText.includes('<requires-pairing>true</requires-pairing>');
 
-              localStorage.setItem('rokuDeviceIP', this.deviceIP);
-              localStorage.setItem('rokuDeviceInfo', JSON.stringify(this.deviceInfo));
-              
-              this.isScanning = false;
-              return this.deviceIP;
+                this.deviceIP = foundDevice.ip;
+                this.deviceInfo = {
+                  model: modelName,
+                  number: modelNumber,
+                  isTV,
+                  requiresPairing
+                };
+
+                localStorage.setItem('rokuDeviceIP', this.deviceIP);
+                localStorage.setItem('rokuDeviceInfo', JSON.stringify(this.deviceInfo));
+                
+                this.scanAbortController.abort();
+                this.isScanning = false;
+                return this.deviceIP;
+              }
+            } catch (error) {
+              if (error.name === 'AbortError') throw error;
+              console.log(`Batch failed in range ${range}:`, error);
             }
-            promises.length = 0;
+            
+            ipBatches.length = 0;
           }
         }
       }
@@ -136,8 +236,14 @@ class RokuService {
       this.isScanning = false;
       throw new Error('No Roku devices found on the network. Please make sure:\n1. Your Roku is turned on\n2. You\'re on the same network as your Roku');
     } catch (error) {
+      console.error('Scan error:', error);
       this.isScanning = false;
+      if (error.name === 'AbortError') {
+        return null;
+      }
       throw error;
+    } finally {
+      this.scanAbortController = null;
     }
   }
 
@@ -156,6 +262,7 @@ class RokuService {
         '1. Go to Settings > Network\n' +
         '2. Select "About"\n' +
         '3. Look for "IP address"\n\n' +
+        'Note: Make sure port 8060 is accessible.\n' +
         'Make sure your device is on the same network as the Roku TV.'
       );
 
@@ -165,7 +272,13 @@ class RokuService {
 
       const testResult = await this.testConnection(ip);
       if (!testResult.success) {
-        throw new Error(`Could not connect to Roku at ${ip}. Please make sure:\n1. The IP address is correct\n2. Your Roku is turned on\n3. You're on the same network as your Roku`);
+        throw new Error(
+          `Could not connect to Roku at ${ip}:8060. Please make sure:\n` +
+          '1. The IP address is correct\n' +
+          '2. Your Roku is turned on\n' +
+          '3. Port 8060 is not blocked\n' +
+          '4. You\'re on the same network as your Roku'
+        );
       }
 
       // Parse device info
