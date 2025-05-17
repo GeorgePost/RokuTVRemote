@@ -7,12 +7,24 @@
       "src": "/RokuTVRemote/favicon.ico",
       "sizes": "64x64 32x32 24x24 16x16",
       "type": "image/x-icon"
+    },
+    {
+      "src": "/RokuTVRemote/logo192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/RokuTVRemote/logo512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
   ],
   "id": "/RokuTVRemote/",
   "start_url": "/RokuTVRemote/",
   "display": "standalone",
-  "theme_color": "#000000",
+  "theme_color": "#6A0DAD",
   "background_color": "#ffffff",
   "scope": "/RokuTVRemote/"
 } 
