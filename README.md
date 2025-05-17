@@ -1,6 +1,6 @@
 # Roku Web Remote
 
-A web-based remote control application for Roku devices, built with React and Material-UI. Made with Cursor AI.
+A web-based remote control application for Roku devices, built with React and Material-UI.
 
 ## Features
 
@@ -36,7 +36,7 @@ You can find your Roku device's IP address in one of these ways:
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/roku-web-remote.git
+   git clone https://github.com/GeorgePost/RokuTVRemote.git
    cd roku-web-remote
    ```
 
@@ -51,6 +51,22 @@ You can find your Roku device's IP address in one of these ways:
    ```
 
 4. Open [http://localhost:3000](http://localhost:3000) in your browser
+
+## Deployment
+
+The application is deployed using GitHub Pages. You can access the live version at:
+[https://georgepost.github.io/RokuTVRemote](https://georgepost.github.io/RokuTVRemote)
+
+To deploy your own version:
+
+1. Fork this repository
+2. Update the `homepage` field in `package.json` with your GitHub Pages URL
+3. Run the deployment command:
+   ```bash
+   npm run deploy
+   ```
+
+Note: Make sure your Roku device and the device running the web app are on the same local network for the remote to work.
 
 ## Usage
 
