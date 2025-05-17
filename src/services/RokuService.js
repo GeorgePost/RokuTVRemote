@@ -2,32 +2,147 @@ class RokuService {
   constructor() {
     this.deviceIP = localStorage.getItem('rokuDeviceIP') || '';
     this.deviceInfo = JSON.parse(localStorage.getItem('rokuDeviceInfo') || 'null');
+    this.isScanning = false;
+  }
+
+  async testConnection(ip) {
+    try {
+      const response = await fetch(`http://${ip}:8060/query/device-info`, {
+        method: 'GET',
+        timeout: 2000 // Reduced timeout for faster scanning
+      });
+      
+      if (!response.ok) {
+        throw new Error('Could not connect to Roku device');
+      }
+
+      const deviceInfoText = await response.text();
+      return {
+        success: true,
+        deviceInfo: deviceInfoText
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  async scanNetwork() {
+    if (this.isScanning) {
+      return null;
+    }
+
+    this.isScanning = true;
+    console.log('Starting network scan for Roku devices...');
+
+    try {
+      // Common local IP ranges
+      const ranges = [
+        '192.168.1',
+        '192.168.0',
+        '10.0.0',
+        '10.0.1',
+        '172.16.0'
+      ];
+
+      // Try stored IP first
+      if (this.deviceIP) {
+        const testResult = await this.testConnection(this.deviceIP);
+        if (testResult.success) {
+          console.log('Successfully connected to stored device IP');
+          this.isScanning = false;
+          return this.deviceIP;
+        }
+      }
+
+      // Scan common ports in parallel
+      for (const range of ranges) {
+        const promises = [];
+        for (let i = 1; i < 255; i++) {
+          const ip = `${range}.${i}`;
+          promises.push(this.testConnection(ip));
+          
+          // Test 10 IPs at a time to avoid overwhelming the browser
+          if (promises.length >= 10) {
+            const results = await Promise.all(promises);
+            const foundDevice = results.find(result => result.success);
+            if (foundDevice) {
+              const deviceIP = `${range}.${i - promises.length + results.indexOf(foundDevice) + 1}`;
+              console.log('Found Roku device at:', deviceIP);
+              this.deviceIP = deviceIP;
+              
+              // Parse device info
+              const deviceInfoText = foundDevice.deviceInfo;
+              const modelName = deviceInfoText.match(/<model-name>([^<]+)<\/model-name>/)?.[1];
+              const modelNumber = deviceInfoText.match(/<model-number>([^<]+)<\/model-number>/)?.[1];
+              const isTV = deviceInfoText.includes('<is-tv>true</is-tv>');
+              const requiresPairing = deviceInfoText.includes('<requires-pairing>true</requires-pairing>');
+
+              this.deviceInfo = {
+                model: modelName,
+                number: modelNumber,
+                isTV,
+                requiresPairing
+              };
+
+              localStorage.setItem('rokuDeviceIP', this.deviceIP);
+              localStorage.setItem('rokuDeviceInfo', JSON.stringify(this.deviceInfo));
+              
+              this.isScanning = false;
+              return this.deviceIP;
+            }
+            promises.length = 0;
+          }
+        }
+      }
+
+      this.isScanning = false;
+      throw new Error('No Roku devices found on the network. Please make sure:\n1. Your Roku is turned on\n2. You\'re on the same network as your Roku');
+    } catch (error) {
+      this.isScanning = false;
+      throw error;
+    }
   }
 
   async discoverDevices() {
     try {
-      // Since we can't do SSDP discovery from the browser,
-      // we'll need the user to input the Roku IP address
-      const ip = prompt('Please enter your Roku device IP address:');
+      const deviceIP = await this.scanNetwork();
+      if (deviceIP) {
+        return deviceIP;
+      }
+      
+      // If automatic scanning fails, fall back to manual input
+      const ip = prompt(
+        'Could not automatically find your Roku device.\n\n' +
+        'Please enter your Roku device IP address.\n' +
+        'You can find it on your Roku device:\n' +
+        '1. Go to Settings > Network\n' +
+        '2. Select "About"\n' +
+        '3. Look for "IP address"\n\n' +
+        'Make sure your device is on the same network as the Roku TV.'
+      );
+
       if (!ip) {
         throw new Error('No IP address provided');
       }
 
-      // Verify the IP by trying to get device info
-      const deviceInfoResponse = await fetch(`http://${ip}:8060/query/device-info`);
-      if (!deviceInfoResponse.ok) {
-        throw new Error('Could not connect to Roku device at this IP');
+      const testResult = await this.testConnection(ip);
+      if (!testResult.success) {
+        throw new Error(`Could not connect to Roku at ${ip}. Please make sure:\n1. The IP address is correct\n2. Your Roku is turned on\n3. You're on the same network as your Roku`);
       }
 
-      const deviceInfoText = await deviceInfoResponse.text();
+      // Parse device info
+      const deviceInfoText = testResult.deviceInfo;
       const modelName = deviceInfoText.match(/<model-name>([^<]+)<\/model-name>/)?.[1];
       const modelNumber = deviceInfoText.match(/<model-number>([^<]+)<\/model-number>/)?.[1];
       const isTV = deviceInfoText.includes('<is-tv>true</is-tv>');
       const requiresPairing = deviceInfoText.includes('<requires-pairing>true</requires-pairing>');
 
       this.deviceIP = ip;
-      this.deviceInfo = { 
-        model: modelName, 
+      this.deviceInfo = {
+        model: modelName,
         number: modelNumber,
         isTV,
         requiresPairing
@@ -49,6 +164,14 @@ class RokuService {
     }
 
     try {
+      // First test the connection
+      const testResult = await this.testConnection(this.deviceIP);
+      if (!testResult.success) {
+        // Clear stored IP and info
+        this.clearDeviceIP();
+        throw new Error('Lost connection to Roku device. Please reconnect.');
+      }
+
       // Map commands to Roku ECP endpoints
       const commandMap = {
         power: 'Power',
@@ -80,39 +203,23 @@ class RokuService {
         throw new Error('Invalid command');
       }
 
-      // Try both HTTP and HTTPS
-      const protocols = ['http', 'https'];
-      let lastError = null;
-
-      for (const protocol of protocols) {
-        try {
-          const response = await fetch(`${protocol}://${this.deviceIP}:8060/keypress/${rokuCommand}`, {
-            method: 'POST',
-            headers: {
-              'Content-Length': '0',
-              'Content-Type': 'application/x-www-form-urlencoded'
-            }
-          });
-
-          if (!response.ok) {
-            // If we get a 403 and haven't tried pairing
-            if (response.status === 403 && this.deviceInfo?.requiresPairing) {
-              await this.pairDevice();
-              throw new Error('Please check your TV screen and accept the pairing request');
-            }
-            throw new Error(`Command failed with status ${response.status}`);
-          }
-
-          return true;
-        } catch (error) {
-          lastError = error;
-          if (error.message.includes('pairing')) {
-            throw error;
-          }
+      const response = await fetch(`http://${this.deviceIP}:8060/keypress/${rokuCommand}`, {
+        method: 'POST',
+        headers: {
+          'Content-Length': '0',
+          'Content-Type': 'application/x-www-form-urlencoded'
         }
+      });
+
+      if (!response.ok) {
+        if (response.status === 403 && this.deviceInfo?.requiresPairing) {
+          await this.pairDevice();
+          throw new Error('Please check your TV screen and accept the pairing request');
+        }
+        throw new Error(`Command failed with status ${response.status}`);
       }
 
-      throw lastError;
+      return true;
     } catch (error) {
       console.error('Command error:', error);
       throw error;

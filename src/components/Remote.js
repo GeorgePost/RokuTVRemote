@@ -26,6 +26,7 @@ const Remote = () => {
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [deviceInfo, setDeviceInfo] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
 
   useEffect(() => {
     const deviceIP = RokuService.getDeviceIP();
@@ -39,13 +40,18 @@ const Remote = () => {
   const handleDiscovery = async () => {
     try {
       setError('');
+      setIsScanning(true);
+      setSnackbarOpen(true);
       await RokuService.discoverDevices();
       setIsConnected(true);
       setDeviceInfo(RokuService.getDeviceInfo());
+      setError('');
       setSnackbarOpen(true);
     } catch (error) {
-      setError('Failed to find Roku device. Make sure it\'s on the same network.');
+      setError(error.message);
       setSnackbarOpen(true);
+    } finally {
+      setIsScanning(false);
     }
   };
 
@@ -120,12 +126,13 @@ const Remote = () => {
           <Box sx={{ mb: 2, display: 'flex', justifyContent: 'center' }}>
             <Button
               variant="contained"
-              startIcon={<SearchIcon />}
+              startIcon={isScanning ? null : <SearchIcon />}
               onClick={handleDiscovery}
+              disabled={isScanning}
               fullWidth
               sx={{ borderRadius: 2 }}
             >
-              Find Roku Device
+              {isScanning ? 'Scanning for Roku devices...' : 'Find Roku Device'}
             </Button>
           </Box>
         )}
@@ -170,6 +177,49 @@ const Remote = () => {
           </IconButton>
         </Box>
 
+        {/* Volume Controls */}
+        <Box sx={{ 
+          position: 'relative', 
+          display: 'flex',
+          flexDirection: 'row',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: 1,
+          bgcolor: '#1A1A1A',
+          padding: 1,
+          borderRadius: '8px',
+          width: '100%',
+          zIndex: 1
+        }}>
+          <IconButton 
+            onClick={() => handleButtonClick('volume_down')}
+            sx={{ 
+              color: 'white',
+              '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }
+            }}
+          >
+            <VolumeDownIcon />
+          </IconButton>
+          <IconButton 
+            onClick={() => handleButtonClick('volume_mute')}
+            sx={{ 
+              color: 'white',
+              '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }
+            }}
+          >
+            <VolumeOffIcon />
+          </IconButton>
+          <IconButton 
+            onClick={() => handleButtonClick('volume_up')}
+            sx={{ 
+              color: 'white',
+              '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }
+            }}
+          >
+            <VolumeUpIcon />
+          </IconButton>
+        </Box>
+
         {/* Navigation Pad */}
         <Box sx={{ 
           display: 'flex', 
@@ -177,7 +227,8 @@ const Remote = () => {
           alignItems: 'center',
           bgcolor: '#5A1E96',
           borderRadius: '50%',
-          p: 1
+          p: 1,
+          position: 'relative'
         }}>
           <IconButton onClick={() => handleButtonClick('up')} sx={{ color: 'white' }}>
             <KeyboardArrowUpIcon />
@@ -209,20 +260,20 @@ const Remote = () => {
 
         {/* Control Buttons */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2 }}>
-          <IconButton sx={{ color: 'white' }}>
+          <IconButton sx={{ color: 'white' }} onClick={() => handleButtonClick('replay')}>
             <ReplayIcon />
           </IconButton>
-          <IconButton sx={{ color: 'white' }}>
+          <IconButton sx={{ color: 'white' }} onClick={() => handleButtonClick('voice')}>
             <MicIcon />
           </IconButton>
-          <IconButton sx={{ color: 'white' }}>
+          <IconButton sx={{ color: 'white' }} onClick={() => handleButtonClick('options')}>
             <MoreVertIcon />
           </IconButton>
         </Box>
 
         {/* Playback Controls */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2 }}>
-          <IconButton sx={{ color: 'white' }}>
+          <IconButton sx={{ color: 'white' }} onClick={() => handleButtonClick('rewind')}>
             <FastRewindIcon />
           </IconButton>
           <IconButton 
@@ -234,7 +285,7 @@ const Remote = () => {
           >
             {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
           </IconButton>
-          <IconButton sx={{ color: 'white' }}>
+          <IconButton sx={{ color: 'white' }} onClick={() => handleButtonClick('forward')}>
             <FastForwardIcon />
           </IconButton>
         </Box>
@@ -260,6 +311,7 @@ const Remote = () => {
           <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 1 }}>
             <Button 
               variant="contained" 
+              onClick={() => handleButtonClick('netflix')}
               sx={{ 
                 bgcolor: '#E50914',
                 minWidth: 100,
@@ -270,6 +322,7 @@ const Remote = () => {
             </Button>
             <Button 
               variant="contained" 
+              onClick={() => handleButtonClick('disney')}
               sx={{ 
                 bgcolor: '#113CCF',
                 minWidth: 100,
@@ -282,6 +335,7 @@ const Remote = () => {
           <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 1 }}>
             <Button 
               variant="contained" 
+              onClick={() => handleButtonClick('appletv')}
               sx={{ 
                 bgcolor: '#000000',
                 minWidth: 100,
@@ -292,6 +346,7 @@ const Remote = () => {
             </Button>
             <Button 
               variant="contained" 
+              onClick={() => handleButtonClick('paramount')}
               sx={{ 
                 bgcolor: '#0064FF',
                 minWidth: 100,
@@ -326,10 +381,10 @@ const Remote = () => {
       >
         <Alert 
           onClose={() => setSnackbarOpen(false)} 
-          severity={error ? "error" : "success"}
+          severity={error ? "error" : isScanning ? "info" : "success"}
           sx={{ width: '100%' }}
         >
-          {error || 'Successfully connected to Roku device!'}
+          {error || (isScanning ? 'Scanning for Roku devices on your network...' : 'Successfully connected to Roku device!')}
         </Alert>
       </Snackbar>
     </>
