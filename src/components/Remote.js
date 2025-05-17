@@ -10,7 +10,6 @@ import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowLeftIcon from '@mui/icons-material/KeyboardArrowLeft';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
-import SearchIcon from '@mui/icons-material/Search';
 import MicIcon from '@mui/icons-material/Mic';
 import ReplayIcon from '@mui/icons-material/Replay';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
@@ -24,6 +23,7 @@ const Remote = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState('');
   const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [deviceInfo, setDeviceInfo] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
 
@@ -58,320 +58,335 @@ const Remote = () => {
     try {
       setError('');
       await RokuService.sendCommand(command);
-    } catch (error) {
-      let errorMessage = 'Failed to send command. Please try reconnecting.';
       
-      if (error.response?.data) {
-        errorMessage = error.response.data.details;
-        
-        // Handle pairing requirement
-        if (error.response.data.requiresPairing) {
-          try {
-            setError('Initiating pairing process...');
-            setSnackbarOpen(true);
-            
-            // Attempt to pair
-            const pairResult = await RokuService.pairDevice();
-            
-            if (pairResult.success) {
-              errorMessage = 'Please check your TV screen and accept the pairing request. After accepting, wait a few seconds and try your command again.';
-              // Add a visual indicator that we're waiting for pairing
-              setError(errorMessage);
-              setSnackbarOpen(true);
-              return;
-            }
-          } catch (pairError) {
-            errorMessage = 'Failed to initiate pairing. Please ensure your TV is on and try again.';
-          }
-        }
-        
-        // Update device info if provided
-        if (error.response.data.deviceInfo) {
-          setDeviceInfo(error.response.data.deviceInfo);
-        }
-        
-        // Special handling for 403 errors
-        if (error.response.status === 403) {
-          errorMessage = `${error.response.data.details} Please ensure your TV is not in a system menu and try again.`;
-        }
+      // Update play/pause state for media controls
+      if (command === 'play' || command === 'pause') {
+        setIsPlaying(!isPlaying);
       }
-      
-      setError(errorMessage);
+    } catch (error) {
+      setError(error.message);
       setSnackbarOpen(true);
       
-      // Only disconnect if it's a network error or 404
-      if (!error.response || error.response.status === 404) {
+      // Only disconnect if it's a network error
+      if (error.message.includes('Could not connect to Roku device')) {
         setIsConnected(false);
+        setDeviceInfo(null);
       }
     }
   };
 
   return (
     <>
-      <Paper 
-        elevation={3}
-        sx={{
-          padding: 2,
-          borderRadius: 10,
-          width: '100%',
-          maxWidth: 280,
-          backgroundColor: '#2F2F2F',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 2,
-        }}
-      >
-        {!isConnected && (
-          <Box sx={{ mb: 2, display: 'flex', justifyContent: 'center' }}>
-            <Button
-              variant="contained"
-              startIcon={isScanning ? null : <SearchIcon />}
-              onClick={handleDiscovery}
-              disabled={isScanning}
-              fullWidth
-              sx={{ borderRadius: 2 }}
-            >
-              {isScanning ? 'Scanning for Roku devices...' : 'Find Roku Device'}
-            </Button>
-          </Box>
-        )}
-
-        {/* Top Section */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-          <IconButton 
-            sx={{ 
-              color: 'error.main',
-              '&.MuiIconButton-root': { borderRadius: '50%' }
-            }}
-            onClick={() => handleButtonClick('power')}
+      {!isConnected ? (
+        <Box sx={{ textAlign: 'center', p: 2 }}>
+          <Typography variant="h6" gutterBottom>
+            Connect to your Roku TV
+          </Typography>
+          <Button
+            variant="contained"
+            onClick={handleDiscovery}
+            disabled={isScanning}
+            sx={{ mt: 2 }}
           >
-            <PowerSettingsNewIcon />
-          </IconButton>
-          <IconButton sx={{ color: 'white' }}>
-            <MicIcon />
-          </IconButton>
+            {isScanning ? 'Connecting...' : 'Connect'}
+          </Button>
         </Box>
-
-        {/* Back and Home Buttons */}
-        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
-          <IconButton 
-            sx={{ 
-              bgcolor: '#1A1A1A',
-              color: 'white',
-              '&:hover': { bgcolor: '#333' }
-            }}
-            onClick={() => handleButtonClick('back')}
-          >
-            <ArrowBackIcon />
-          </IconButton>
-          <IconButton 
-            sx={{ 
-              bgcolor: '#1A1A1A',
-              color: 'white',
-              '&:hover': { bgcolor: '#333' }
-            }}
-            onClick={() => handleButtonClick('home')}
-          >
-            <HomeIcon />
-          </IconButton>
-        </Box>
-
-        {/* Volume Controls */}
-        <Box sx={{ 
-          position: 'relative', 
-          display: 'flex',
-          flexDirection: 'row',
-          justifyContent: 'center',
-          alignItems: 'center',
-          gap: 1,
-          bgcolor: '#1A1A1A',
-          padding: 1,
-          borderRadius: '8px',
-          width: '100%',
-          zIndex: 1
-        }}>
-          <IconButton 
-            onClick={() => handleButtonClick('volume_down')}
-            sx={{ 
-              color: 'white',
-              '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }
-            }}
-          >
-            <VolumeDownIcon />
-          </IconButton>
-          <IconButton 
-            onClick={() => handleButtonClick('volume_mute')}
-            sx={{ 
-              color: 'white',
-              '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }
-            }}
-          >
-            <VolumeOffIcon />
-          </IconButton>
-          <IconButton 
-            onClick={() => handleButtonClick('volume_up')}
-            sx={{ 
-              color: 'white',
-              '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }
-            }}
-          >
-            <VolumeUpIcon />
-          </IconButton>
-        </Box>
-
-        {/* Navigation Pad */}
-        <Box sx={{ 
-          display: 'flex', 
-          flexDirection: 'column', 
-          alignItems: 'center',
-          bgcolor: '#5A1E96',
-          borderRadius: '50%',
-          p: 1,
-          position: 'relative'
-        }}>
-          <IconButton onClick={() => handleButtonClick('up')} sx={{ color: 'white' }}>
-            <KeyboardArrowUpIcon />
-          </IconButton>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-            <IconButton onClick={() => handleButtonClick('left')} sx={{ color: 'white' }}>
-              <KeyboardArrowLeftIcon />
-            </IconButton>
-            <Button 
-              onClick={() => handleButtonClick('ok')}
+      ) : (
+        <Paper 
+          elevation={3}
+          sx={{
+            p: 2,
+            bgcolor: '#1A1A1A',
+            borderRadius: '16px',
+            maxWidth: 400,
+            mx: 'auto'
+          }}
+        >
+          {/* Power Button */}
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+            <IconButton 
+              onClick={() => handleButtonClick('power')}
               sx={{ 
-                minWidth: 40,
-                height: 40,
-                borderRadius: '50%',
+                color: '#E91E63',
+                '&:hover': { bgcolor: 'rgba(233,30,99,0.1)' }
+              }}
+            >
+              <PowerSettingsNewIcon />
+            </IconButton>
+          </Box>
+
+          {/* Navigation Controls */}
+          <Box sx={{ 
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 1,
+            mb: 3
+          }}>
+            {/* D-Pad */}
+            <Box sx={{ 
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: 1,
+              width: 'fit-content'
+            }}>
+              {/* Up */}
+              <Box sx={{ gridColumn: '2' }}>
+                <IconButton 
+                  onClick={() => handleButtonClick('up')}
+                  sx={{ 
+                    bgcolor: '#333',
+                    color: 'white',
+                    '&:hover': { bgcolor: '#444' }
+                  }}
+                >
+                  <KeyboardArrowUpIcon />
+                </IconButton>
+              </Box>
+              
+              {/* Left */}
+              <IconButton 
+                onClick={() => handleButtonClick('left')}
+                sx={{ 
+                  bgcolor: '#333',
+                  color: 'white',
+                  '&:hover': { bgcolor: '#444' }
+                }}
+              >
+                <KeyboardArrowLeftIcon />
+              </IconButton>
+              
+              {/* OK */}
+              <IconButton 
+                onClick={() => handleButtonClick('ok')}
+                sx={{ 
+                  bgcolor: '#6200EE',
+                  color: 'white',
+                  '&:hover': { bgcolor: '#7E3FF2' }
+                }}
+              >
+                <Typography variant="button">OK</Typography>
+              </IconButton>
+              
+              {/* Right */}
+              <IconButton 
+                onClick={() => handleButtonClick('right')}
+                sx={{ 
+                  bgcolor: '#333',
+                  color: 'white',
+                  '&:hover': { bgcolor: '#444' }
+                }}
+              >
+                <KeyboardArrowRightIcon />
+              </IconButton>
+              
+              {/* Down */}
+              <Box sx={{ gridColumn: '2' }}>
+                <IconButton 
+                  onClick={() => handleButtonClick('down')}
+                  sx={{ 
+                    bgcolor: '#333',
+                    color: 'white',
+                    '&:hover': { bgcolor: '#444' }
+                  }}
+                >
+                  <KeyboardArrowDownIcon />
+                </IconButton>
+              </Box>
+            </Box>
+          </Box>
+
+          {/* Back and Home */}
+          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
+            <IconButton 
+              sx={{ 
+                bgcolor: '#1A1A1A',
+                color: 'white',
+                '&:hover': { bgcolor: '#333' }
+              }}
+              onClick={() => handleButtonClick('back')}
+            >
+              <ArrowBackIcon />
+            </IconButton>
+            <IconButton 
+              sx={{ 
+                bgcolor: '#1A1A1A',
+                color: 'white',
+                '&:hover': { bgcolor: '#333' }
+              }}
+              onClick={() => handleButtonClick('home')}
+            >
+              <HomeIcon />
+            </IconButton>
+          </Box>
+
+          {/* Volume Controls */}
+          <Box sx={{ 
+            position: 'relative', 
+            display: 'flex',
+            flexDirection: 'row',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: 1,
+            bgcolor: '#1A1A1A',
+            padding: 1,
+            borderRadius: '8px',
+            width: '100%',
+            zIndex: 1
+          }}>
+            <IconButton 
+              onClick={() => handleButtonClick('volume_down')}
+              sx={{ 
                 color: 'white',
                 '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }
               }}
             >
-              OK
-            </Button>
-            <IconButton onClick={() => handleButtonClick('right')} sx={{ color: 'white' }}>
-              <KeyboardArrowRightIcon />
+              <VolumeDownIcon />
+            </IconButton>
+            <IconButton 
+              onClick={() => handleButtonClick('volume_mute')}
+              sx={{ 
+                color: 'white',
+                '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }
+              }}
+            >
+              <VolumeOffIcon />
+            </IconButton>
+            <IconButton 
+              onClick={() => handleButtonClick('volume_up')}
+              sx={{ 
+                color: 'white',
+                '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }
+              }}
+            >
+              <VolumeUpIcon />
             </IconButton>
           </Box>
-          <IconButton onClick={() => handleButtonClick('down')} sx={{ color: 'white' }}>
-            <KeyboardArrowDownIcon />
-          </IconButton>
-        </Box>
 
-        {/* Control Buttons */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2 }}>
-          <IconButton sx={{ color: 'white' }} onClick={() => handleButtonClick('replay')}>
-            <ReplayIcon />
-          </IconButton>
-          <IconButton sx={{ color: 'white' }} onClick={() => handleButtonClick('voice')}>
-            <MicIcon />
-          </IconButton>
-          <IconButton sx={{ color: 'white' }} onClick={() => handleButtonClick('options')}>
-            <MoreVertIcon />
-          </IconButton>
-        </Box>
+          {/* Playback Controls */}
+          <Box sx={{ 
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: 2,
+            mt: 2
+          }}>
+            <IconButton 
+              onClick={() => handleButtonClick('rewind')}
+              sx={{ color: 'white' }}
+            >
+              <FastRewindIcon />
+            </IconButton>
+            <IconButton 
+              onClick={() => handleButtonClick(isPlaying ? 'pause' : 'play')}
+              sx={{ color: 'white' }}
+            >
+              {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
+            </IconButton>
+            <IconButton 
+              onClick={() => handleButtonClick('forward')}
+              sx={{ color: 'white' }}
+            >
+              <FastForwardIcon />
+            </IconButton>
+          </Box>
 
-        {/* Playback Controls */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2 }}>
-          <IconButton sx={{ color: 'white' }} onClick={() => handleButtonClick('rewind')}>
-            <FastRewindIcon />
-          </IconButton>
-          <IconButton 
-            sx={{ color: 'white' }}
-            onClick={() => {
-              setIsPlaying(!isPlaying);
-              handleButtonClick(isPlaying ? 'pause' : 'play');
+          {/* Additional Controls */}
+          <Box sx={{ 
+            display: 'flex',
+            justifyContent: 'center',
+            gap: 2,
+            mt: 2
+          }}>
+            <IconButton 
+              onClick={() => handleButtonClick('voice')}
+              sx={{ color: 'white' }}
+            >
+              <MicIcon />
+            </IconButton>
+            <IconButton 
+              onClick={() => handleButtonClick('replay')}
+              sx={{ color: 'white' }}
+            >
+              <ReplayIcon />
+            </IconButton>
+            <IconButton 
+              onClick={() => handleButtonClick('options')}
+              sx={{ color: 'white' }}
+            >
+              <MoreVertIcon />
+            </IconButton>
+          </Box>
+
+          {/* Streaming Service Shortcuts */}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 1 }}>
+              <Button 
+                variant="contained" 
+                onClick={() => handleButtonClick('netflix')}
+                sx={{ 
+                  bgcolor: '#E50914',
+                  minWidth: 100,
+                  '&:hover': { bgcolor: '#B2070F' }
+                }}
+              >
+                NETFLIX
+              </Button>
+              <Button 
+                variant="contained" 
+                onClick={() => handleButtonClick('disney')}
+                sx={{ 
+                  bgcolor: '#113CCF',
+                  minWidth: 100,
+                  '&:hover': { bgcolor: '#0C2A99' }
+                }}
+              >
+                Disney+
+              </Button>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 1 }}>
+              <Button 
+                variant="contained" 
+                onClick={() => handleButtonClick('appletv')}
+                sx={{ 
+                  bgcolor: '#000000',
+                  minWidth: 100,
+                  '&:hover': { bgcolor: '#333' }
+                }}
+              >
+                Apple TV+
+              </Button>
+              <Button 
+                variant="contained" 
+                onClick={() => handleButtonClick('paramount')}
+                sx={{ 
+                  bgcolor: '#0064FF',
+                  minWidth: 100,
+                  '&:hover': { bgcolor: '#0046B2' }
+                }}
+              >
+                Paramount+
+              </Button>
+            </Box>
+          </Box>
+
+          {/* Roku Logo */}
+          <Box 
+            sx={{ 
+              bgcolor: '#5A1E96',
+              p: 1,
+              borderRadius: 1,
+              textAlign: 'center',
+              mt: 1
             }}
           >
-            {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
-          </IconButton>
-          <IconButton sx={{ color: 'white' }} onClick={() => handleButtonClick('forward')}>
-            <FastForwardIcon />
-          </IconButton>
-        </Box>
-
-        {/* Shortcut Numbers */}
-        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
-          <Button 
-            variant="text" 
-            sx={{ color: 'white', minWidth: 40 }}
-          >
-            1
-          </Button>
-          <Button 
-            variant="text" 
-            sx={{ color: 'white', minWidth: 40 }}
-          >
-            2
-          </Button>
-        </Box>
-
-        {/* Streaming Service Shortcuts */}
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 1 }}>
-            <Button 
-              variant="contained" 
-              onClick={() => handleButtonClick('netflix')}
-              sx={{ 
-                bgcolor: '#E50914',
-                minWidth: 100,
-                '&:hover': { bgcolor: '#B2070F' }
-              }}
-            >
-              NETFLIX
-            </Button>
-            <Button 
-              variant="contained" 
-              onClick={() => handleButtonClick('disney')}
-              sx={{ 
-                bgcolor: '#113CCF',
-                minWidth: 100,
-                '&:hover': { bgcolor: '#0C2A99' }
-              }}
-            >
-              Disney+
-            </Button>
+            <Typography sx={{ color: 'white', fontWeight: 'bold' }}>
+              Roku
+            </Typography>
           </Box>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 1 }}>
-            <Button 
-              variant="contained" 
-              onClick={() => handleButtonClick('appletv')}
-              sx={{ 
-                bgcolor: '#000000',
-                minWidth: 100,
-                '&:hover': { bgcolor: '#333' }
-              }}
-            >
-              Apple TV+
-            </Button>
-            <Button 
-              variant="contained" 
-              onClick={() => handleButtonClick('paramount')}
-              sx={{ 
-                bgcolor: '#0064FF',
-                minWidth: 100,
-                '&:hover': { bgcolor: '#0046B2' }
-              }}
-            >
-              Paramount+
-            </Button>
-          </Box>
-        </Box>
-
-        {/* Roku Logo */}
-        <Box 
-          sx={{ 
-            bgcolor: '#5A1E96',
-            p: 1,
-            borderRadius: 1,
-            textAlign: 'center',
-            mt: 1
-          }}
-        >
-          <Typography sx={{ color: 'white', fontWeight: 'bold' }}>
-            Roku
-          </Typography>
-        </Box>
-      </Paper>
+        </Paper>
+      )}
 
       <Snackbar
         open={snackbarOpen}

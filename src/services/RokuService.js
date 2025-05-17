@@ -250,4 +250,5 @@ class RokuService {
   }
 }
 
-export default new RokuService(); 
+const rokuService = new RokuService();
+export default rokuService; 
