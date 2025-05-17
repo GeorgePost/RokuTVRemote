@@ -34,8 +34,8 @@ class RokuService {
     try {
       console.log(`Testing connection to Roku at ${ip}:8060`);
       
-      // Try to fetch device info
-      const response = await fetch(`http://${ip}:8060/query/device-info`, {
+      // Try to fetch device info - with no-cors we can only check if the request doesn't throw
+      await fetch(`http://${ip}:8060/query/device-info`, {
         method: 'GET',
         mode: 'no-cors',
         headers: {
@@ -43,14 +43,14 @@ class RokuService {
         }
       });
 
-      // Since we can't read the response with no-cors, we'll assume success if no error
+      // If we get here, the request succeeded (didn't throw)
       console.log('Connection test successful');
       
-      // Store a minimal device info object since we can't read the actual response
+      // Store a minimal device info object since we can't read the actual response with no-cors
       const deviceInfo = {
         ip: ip,
         lastConnected: new Date().toISOString(),
-        isTV: true // Assuming TV for now since we can't detect
+        isTV: true // Assuming TV for now since we can't detect with no-cors
       };
 
       return {
@@ -189,7 +189,8 @@ class RokuService {
         await new Promise(resolve => setTimeout(resolve, 100 - timeSinceLastCommand));
       }
 
-      const response = await fetch(`http://${this.deviceIP}:8060/keypress/${rokuCommand}`, {
+      // Send command - with no-cors we can only check if it doesn't throw
+      await fetch(`http://${this.deviceIP}:8060/keypress/${rokuCommand}`, {
         method: 'POST',
         mode: 'no-cors',
         headers: {

@@ -24,7 +24,6 @@ const Remote = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState('');
   const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [deviceInfo, setDeviceInfo] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
 
