@@ -37,38 +37,47 @@ async function handleRokuRequest(request) {
     // Construct the actual Roku request URL with port 8060
     const rokuUrl = `http://${ip}:8060/${command}`;
     console.log('Sending request to:', rokuUrl);
-    
-    // Forward the request to the Roku device
-    const response = await fetch(rokuUrl, {
+
+    // Create a no-cors request to bypass HTTPS restrictions
+    const rokuRequest = new Request(rokuUrl, {
       method: request.method,
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Connection': 'close'
       },
+      mode: 'no-cors',
       signal: AbortSignal.timeout(2000)
     });
-
-    const responseText = await response.text();
-    console.log('Received response:', response.status, responseText.substring(0, 100));
-
-    // Return the response
-    return new Response(responseText, {
-      status: response.status,
+    
+    // Send the request
+    const response = await fetch(rokuRequest);
+    
+    // Since we're using no-cors, we need to create a new response
+    // that we can modify and send back to the client
+    return new Response(response.body, {
+      status: response.status || 200,
       headers: {
-        'Content-Type': response.headers.get('Content-Type'),
-        'Access-Control-Allow-Origin': '*'
+        'Content-Type': 'application/xml',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type'
       }
     });
   } catch (error) {
     console.error('Roku request error:', error);
+    
+    // Return a more detailed error response
     return new Response(JSON.stringify({ 
       error: error.message,
-      details: 'Make sure your Roku device is powered on and on port 8060'
+      details: 'Make sure your Roku device is powered on and on port 8060',
+      allowInsecureContent: 'You may need to allow insecure content in your browser settings'
     }), {
       status: 500,
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type'
       }
     });
   }
