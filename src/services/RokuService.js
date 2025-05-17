@@ -3,13 +3,48 @@ class RokuService {
     this.deviceIP = localStorage.getItem('rokuDeviceIP') || '';
     this.deviceInfo = JSON.parse(localStorage.getItem('rokuDeviceInfo') || 'null');
     this.isScanning = false;
+    this.isHttps = window.location.protocol === 'https:';
+    
+    // Register service worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/roku-service-worker.js')
+        .then(registration => {
+          console.log('Service Worker registered:', registration);
+        })
+        .catch(error => {
+          console.error('Service Worker registration failed:', error);
+        });
+    }
+  }
+
+  checkHttpsWarning() {
+    if (this.isHttps) {
+      throw new Error(
+        'HTTPS Security Notice: This app needs to run over HTTP to communicate with Roku devices.\n\n' +
+        'To use this remote, you have two options:\n\n' +
+        '1. Run the app locally (Recommended):\n' +
+        '   - Visit the GitHub repository\n' +
+        '   - Follow the instructions in the README\n\n' +
+        '2. Allow insecure content in your browser:\n' +
+        '   Chrome/Edge:\n' +
+        '   - Click the padlock icon\n' +
+        '   - Click "Site Settings"\n' +
+        '   - Under "Insecure content", select "Allow"\n' +
+        '   - Refresh the page\n\n' +
+        '   Firefox:\n' +
+        '   - Click the padlock icon\n' +
+        '   - Click ">" next to "Connection secure"\n' +
+        '   - Click "Disable protection for now"\n' +
+        '   - Refresh the page'
+      );
+    }
   }
 
   async testConnection(ip) {
     try {
-      const response = await fetch(`http://${ip}:8060/query/device-info`, {
+      const response = await fetch(`/roku/${ip}/query/device-info`, {
         method: 'GET',
-        timeout: 2000 // Reduced timeout for faster scanning
+        timeout: 2000
       });
       
       if (!response.ok) {
@@ -203,7 +238,7 @@ class RokuService {
         throw new Error('Invalid command');
       }
 
-      const response = await fetch(`http://${this.deviceIP}:8060/keypress/${rokuCommand}`, {
+      const response = await fetch(`/roku/${this.deviceIP}/keypress/${rokuCommand}`, {
         method: 'POST',
         headers: {
           'Content-Length': '0',
@@ -232,7 +267,7 @@ class RokuService {
     }
 
     try {
-      const response = await fetch(`http://${this.deviceIP}:8060/pair/request`, {
+      const response = await fetch(`/roku/${this.deviceIP}/pair/request`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
