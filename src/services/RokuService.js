@@ -233,6 +233,7 @@ class RokuService {
         console.log('Sending command to proxy:', { command, rokuCommand });
         const response = await fetch(`/api/roku-proxy?ip=${this.deviceIP}&command=${rokuCommand}&_t=${Date.now()}`, {
           method: 'GET', // The proxy will convert this to POST for Roku
+          mode: 'cors', // We want CORS for proxy requests
           headers: {
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache'
@@ -245,17 +246,25 @@ class RokuService {
           console.error('Error response:', text);
           throw new Error('Command failed');
         }
+
+        // Log successful response
+        const responseData = await response.json();
+        console.log('Proxy response:', responseData);
       } else {
         // Direct HTTP request for non-HTTPS
-        await fetch(`http://${this.deviceIP}:8060/keypress/${rokuCommand}?_t=${Date.now()}`, {
+        console.log('Sending direct command to Roku:', { command, rokuCommand });
+        const response = await fetch(`http://${this.deviceIP}:8060/keypress/${rokuCommand}`, {
           method: 'POST', // Roku requires POST for keypress
-          mode: 'no-cors',
+          mode: 'no-cors', // Required for direct Roku requests
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache'
-          }
+          },
+          body: '' // Roku expects an empty body for POST requests
         });
+
+        console.log('Direct command response:', response);
       }
 
       this.lastCommandTime = Date.now();

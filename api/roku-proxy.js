@@ -66,14 +66,21 @@ export default async function handler(req) {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Cache-Control': 'no-store, no-cache, must-revalidate',
-        'Pragma': 'no-cache'
+        'Pragma': 'no-cache',
+        'Accept': '*/*'
       },
       // For POST requests, send an empty body as required by Roku
       ...(isTest ? {} : { body: '' })
     });
 
     // Log the complete response details for debugging
-    const responseText = await rokuResponse.text();
+    let responseText = '';
+    try {
+      responseText = await rokuResponse.text();
+    } catch (e) {
+      console.log('Could not read response text:', e);
+    }
+
     console.log('Roku response:', {
       status: rokuResponse.status,
       ok: rokuResponse.ok,
@@ -90,7 +97,8 @@ export default async function handler(req) {
     return new Response(JSON.stringify({ 
       success: true,
       command: command,
-      status: rokuResponse.status 
+      status: rokuResponse.status,
+      response: responseText || null
     }), {
       status: 200,
       headers: {
