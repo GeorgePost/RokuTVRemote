@@ -3,6 +3,11 @@ export const config = {
 };
 
 export default async function handler(req) {
+  console.log('Proxy request received:', {
+    method: req.method,
+    url: req.url
+  });
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, {
@@ -22,8 +27,11 @@ export default async function handler(req) {
   const rokuIp = url.searchParams.get('ip');
   const command = url.searchParams.get('command');
 
+  console.log('Request parameters:', { rokuIp, command });
+
   if (!rokuIp) {
-    return new Response('Missing Roku IP address', { 
+    console.error('Missing Roku IP address');
+    return new Response(JSON.stringify({ error: 'Missing Roku IP address' }), { 
       status: 400,
       headers: {
         'Access-Control-Allow-Origin': '*',
@@ -48,6 +56,11 @@ export default async function handler(req) {
     // Add timestamp to prevent caching
     rokuUrl += `?_t=${Date.now()}`;
 
+    console.log('Sending request to Roku:', {
+      url: rokuUrl,
+      method: command && command !== 'test' ? 'POST' : 'GET'
+    });
+
     // Forward the request to Roku
     const rokuResponse = await fetch(rokuUrl, {
       method: command && command !== 'test' ? 'POST' : 'GET',
@@ -58,12 +71,19 @@ export default async function handler(req) {
       }
     });
 
+    // Log the Roku response
+    console.log('Roku response:', {
+      status: rokuResponse.status,
+      ok: rokuResponse.ok
+    });
+
     // If the response wasn't ok, throw an error
     if (!rokuResponse.ok) {
       throw new Error(`Roku request failed with status ${rokuResponse.status}`);
     }
 
-    return new Response(null, {
+    // Send success response
+    return new Response(JSON.stringify({ success: true }), {
       status: 200,
       headers: {
         'Access-Control-Allow-Origin': '*',
@@ -74,10 +94,15 @@ export default async function handler(req) {
       }
     });
   } catch (error) {
-    console.error('Roku proxy error:', error);
+    console.error('Roku proxy error:', {
+      message: error.message,
+      stack: error.stack
+    });
+
     return new Response(JSON.stringify({ 
       error: error.message,
-      details: 'Failed to communicate with Roku device'
+      details: 'Failed to communicate with Roku device',
+      timestamp: new Date().toISOString()
     }), { 
       status: 500,
       headers: {

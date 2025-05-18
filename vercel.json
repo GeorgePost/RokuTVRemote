@@ -21,35 +21,48 @@
       }
     },
     {
-      "src": "^/static/(.*)",
-      "dest": "/static/$1"
-    },
-    {
-      "src": "^/favicon.ico",
-      "dest": "/favicon.ico"
-    },
-    {
-      "src": "^/logo192.png",
-      "dest": "/logo192.png"
-    },
-    {
-      "src": "^/logo512.png",
-      "dest": "/logo512.png"
-    },
-    {
-      "src": "^/manifest.json",
+      "src": "/manifest.json",
       "dest": "/manifest.json",
       "headers": {
         "Content-Type": "application/manifest+json",
+        "Access-Control-Allow-Origin": "*",
         "cache-control": "public, max-age=0, must-revalidate"
       }
     },
     {
-      "handle": "filesystem"
+      "src": "/static/(.*)",
+      "dest": "/static/$1",
+      "headers": {
+        "cache-control": "public, max-age=31536000, immutable"
+      }
     },
     {
-      "src": "^/(.*)$",
-      "dest": "/index.html"
+      "src": "/favicon.ico",
+      "dest": "/favicon.ico",
+      "headers": {
+        "cache-control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "src": "/logo192.png",
+      "dest": "/logo192.png",
+      "headers": {
+        "cache-control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "src": "/logo512.png",
+      "dest": "/logo512.png",
+      "headers": {
+        "cache-control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html",
+      "headers": {
+        "cache-control": "public, max-age=0, must-revalidate"
+      }
     }
   ]
 } 
