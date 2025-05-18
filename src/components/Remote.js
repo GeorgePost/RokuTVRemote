@@ -79,16 +79,29 @@ const Remote = () => {
     <>
       {!isConnected ? (
         <Box sx={{ textAlign: 'center', p: 2 }}>
-          <Typography variant="h6" gutterBottom>
+          <Typography variant="h5" gutterBottom sx={{ mb: 3 }}>
             Connect to your Roku TV
+          </Typography>
+          <Typography variant="body1" sx={{ mb: 3 }}>
+            To use this remote, you'll need to enter your Roku TV's IP address.
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+            To find your Roku's IP address:
+            <br />1. On your Roku, go to Settings {'->'} Network
+            <br />2. Select "About"
+            <br />3. Look for "IP address"
           </Typography>
           <Button
             variant="contained"
             onClick={handleDiscovery}
             disabled={isScanning}
-            sx={{ mt: 2 }}
+            sx={{ 
+              mt: 2,
+              bgcolor: '#6200EE',
+              '&:hover': { bgcolor: '#7E3FF2' }
+            }}
           >
-            {isScanning ? 'Connecting...' : 'Connect'}
+            {isScanning ? 'Connecting...' : 'Enter IP Address'}
           </Button>
         </Box>
       ) : (

@@ -8,79 +8,8 @@ class RokuService {
     this.isProcessingQueue = false;
   }
 
-  checkHttpsWarning() {
-    if (this.isHttps) {
-      throw new Error(
-        'HTTPS Security Notice: This app needs to communicate with your Roku device over HTTP.\n\n' +
-        'To use this remote, please:\n\n' +
-        '1. Make sure your device is on the same network as your Roku\n' +
-        '2. Allow insecure content in your browser:\n\n' +
-        'Chrome/Edge:\n' +
-        '1. Click the lock icon in the address bar\n' +
-        '2. Click "Site Settings"\n' +
-        '3. Under "Insecure content", select "Allow"\n' +
-        '4. Refresh the page\n\n' +
-        'Firefox:\n' +
-        '1. Click the lock icon\n' +
-        '2. Click ">" next to "Connection secure"\n' +
-        '3. Click "Disable protection for now"\n' +
-        '4. Refresh the page\n\n' +
-        'Note: These settings only affect this website.'
-      );
-    }
-  }
-
-  async testConnection(ip) {
-    try {
-      console.log(`Testing connection to Roku at ${ip}:8060`);
-      
-      // Try to fetch device info - with no-cors we can only check if the request doesn't throw
-      await fetch(`http://${ip}:8060/query/device-info`, {
-        method: 'GET',
-        mode: 'no-cors',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        }
-      });
-
-      // If we get here, the request succeeded (didn't throw)
-      console.log('Connection test successful');
-      
-      // Store a minimal device info object since we can't read the actual response with no-cors
-      const deviceInfo = {
-        ip: ip,
-        lastConnected: new Date().toISOString(),
-        isTV: true // Assuming TV for now since we can't detect with no-cors
-      };
-
-      return {
-        success: true,
-        deviceInfo
-      };
-    } catch (error) {
-      console.error(`Connection test failed for ${ip}:`, error);
-      return {
-        success: false,
-        error: this.getFormattedError(error)
-      };
-    }
-  }
-
-  getFormattedError(error) {
-    if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-      return 'Could not connect to Roku device. Please check:\n' +
-             '1. The IP address is correct\n' +
-             '2. Your Roku is turned on\n' +
-             '3. You\'re on the same network as your Roku\n' +
-             '4. You\'ve allowed insecure content in your browser settings';
-    }
-    return error.message;
-  }
-
   async discoverDevices() {
     try {
-      this.checkHttpsWarning();
-
       // Try stored IP first
       if (this.deviceIP) {
         console.log('Trying stored IP:', this.deviceIP);
@@ -130,6 +59,53 @@ class RokuService {
       console.error('Discovery error:', error);
       throw error;
     }
+  }
+
+  async testConnection(ip) {
+    try {
+      console.log(`Testing connection to Roku at ${ip}:8060`);
+      
+      // Try to fetch device info - with no-cors we can only check if the request doesn't throw
+      await fetch(`http://${ip}:8060/query/device-info`, {
+        method: 'GET',
+        mode: 'no-cors',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      });
+
+      // If we get here, the request succeeded (didn't throw)
+      console.log('Connection test successful');
+      
+      // Store a minimal device info object since we can't read the actual response with no-cors
+      const deviceInfo = {
+        ip: ip,
+        lastConnected: new Date().toISOString(),
+        isTV: true // Assuming TV for now since we can't detect with no-cors
+      };
+
+      return {
+        success: true,
+        deviceInfo
+      };
+    } catch (error) {
+      console.error(`Connection test failed for ${ip}:`, error);
+      return {
+        success: false,
+        error: this.getFormattedError(error)
+      };
+    }
+  }
+
+  getFormattedError(error) {
+    if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+      return 'Could not connect to Roku device. Please check:\n' +
+             '1. The IP address is correct\n' +
+             '2. Your Roku is turned on\n' +
+             '3. You\'re on the same network as your Roku\n' +
+             '4. You\'ve allowed insecure content in your browser settings';
+    }
+    return error.message;
   }
 
   isValidIP(ip) {
