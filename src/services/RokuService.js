@@ -66,29 +66,35 @@ class RokuService {
 
   async testConnection(ip) {
     try {
-      if (this.useWebSocket) {
-        return await this.testWebSocketConnection(ip);
-      }
-
       console.log(`Testing connection to Roku at ${ip}:8060`);
       
-      // Try to fetch device info - with no-cors we can only check if the request doesn't throw
-      await fetch(`http://${ip}:8060/query/device-info`, {
-        method: 'GET',
-        mode: 'no-cors',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+      if (this.isHttps) {
+        // Use proxy for HTTPS
+        const response = await fetch(`/api/roku-proxy?ip=${ip}&command=Home`, {
+          method: 'POST'
+        });
+        
+        if (!response.ok) {
+          throw new Error('Connection test failed');
         }
-      });
+      } else {
+        // Direct HTTP request for non-HTTPS
+        await fetch(`http://${ip}:8060/query/device-info`, {
+          method: 'GET',
+          mode: 'no-cors',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        });
+      }
 
-      // If we get here, the request succeeded (didn't throw)
+      // If we get here, the request succeeded
       console.log('Connection test successful');
       
-      // Store a minimal device info object since we can't read the actual response with no-cors
       const deviceInfo = {
         ip: ip,
         lastConnected: new Date().toISOString(),
-        isTV: true // Assuming TV for now since we can't detect with no-cors
+        isTV: true
       };
 
       return {
@@ -97,14 +103,6 @@ class RokuService {
       };
     } catch (error) {
       console.error(`Connection test failed for ${ip}:`, error);
-      
-      // If HTTP failed and we haven't tried WebSocket yet, try it as fallback
-      if (!this.useWebSocket && this.isHttps) {
-        console.log('HTTP connection failed, trying WebSocket as fallback...');
-        this.useWebSocket = true;
-        return await this.testWebSocketConnection(ip);
-      }
-
       return {
         success: false,
         error: this.getFormattedError(error)
@@ -230,13 +228,13 @@ class RokuService {
         await new Promise(resolve => setTimeout(resolve, 100 - timeSinceLastCommand));
       }
 
-      if (this.useWebSocket && this.ws) {
-        // Send command via WebSocket
-        this.ws.send(JSON.stringify({
-          command: rokuCommand
-        }));
+      if (this.isHttps) {
+        // Use proxy for HTTPS
+        await fetch(`/api/roku-proxy?ip=${this.deviceIP}&command=${rokuCommand}`, {
+          method: 'POST'
+        });
       } else {
-        // Send command via HTTP
+        // Direct HTTP request for non-HTTPS
         await fetch(`http://${this.deviceIP}:8060/keypress/${rokuCommand}`, {
           method: 'POST',
           mode: 'no-cors',
