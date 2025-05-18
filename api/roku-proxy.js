@@ -3,40 +3,30 @@ export const config = {
   regions: ['iad1'], // Force to run in a specific region
 };
 
-const handler = async (req) => {
-  const requestId = Math.random().toString(36).substring(7);
-  
-  // Common headers for all responses
-  const commonHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Content-Type': 'application/json',
-    'Cache-Control': 'no-store, no-cache, must-revalidate',
-    'Pragma': 'no-cache'
-  };
+// Helper function to create JSON response
+const jsonResponse = (data, status = 200, headers = {}) => {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      'Pragma': 'no-cache',
+      ...headers
+    }
+  });
+};
 
-  // Helper function to send error response
-  const sendError = (status, message, details = {}) => {
-    const errorResponse = {
-      success: false,
-      error: message,
-      ...details,
-      timestamp: new Date().toISOString(),
-      requestId
-    };
-    console.error(`[${requestId}] Error response:`, errorResponse);
-    return new Response(JSON.stringify(errorResponse), { 
-      status,
-      headers: commonHeaders
-    });
-  };
+const handler = async (request) => {
+  const requestId = Math.random().toString(36).substring(7);
 
   try {
-    // Handle CORS preflight requests
-    if (req.method === 'OPTIONS') {
+    // Handle CORS preflight
+    if (request.method === 'OPTIONS') {
       return new Response(null, {
         status: 204,
         headers: {
-          ...commonHeaders,
+          'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'GET, OPTIONS',
           'Access-Control-Allow-Headers': 'Accept',
           'Access-Control-Max-Age': '86400'
@@ -44,124 +34,127 @@ const handler = async (req) => {
       });
     }
 
-    // Only allow GET requests
-    if (req.method !== 'GET') {
-      return sendError(405, 'Method not allowed. Use GET.');
+    // Ensure GET method
+    if (request.method !== 'GET') {
+      return jsonResponse({
+        success: false,
+        error: 'Method not allowed. Use GET.',
+        requestId
+      }, 405);
     }
 
-    // Parse URL and get parameters
-    const reqUrl = new URL(req.url);
-    const rokuIp = reqUrl.searchParams.get('ip');
-    const command = reqUrl.searchParams.get('command');
+    // Parse request URL
+    const url = new URL(request.url);
+    const rokuIp = url.searchParams.get('ip');
+    const command = url.searchParams.get('command');
 
-    console.log(`[${requestId}] Request received:`, {
-      method: req.method,
-      url: reqUrl.toString(),
-      ip: rokuIp,
-      command
-    });
-
+    // Validate parameters
     if (!rokuIp) {
-      return sendError(400, 'Missing Roku IP address');
+      return jsonResponse({
+        success: false,
+        error: 'Missing Roku IP address',
+        requestId
+      }, 400);
     }
 
-    // Validate IP address format
-    const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
-    if (!ipRegex.test(rokuIp)) {
-      return sendError(400, 'Invalid IP address format');
+    if (!rokuIp.match(/^(\d{1,3}\.){3}\d{1,3}$/)) {
+      return jsonResponse({
+        success: false,
+        error: 'Invalid IP address format',
+        requestId
+      }, 400);
     }
 
-    // Construct the Roku URL
+    // Build Roku URL
     const isTest = !command || command === 'test';
     const rokuUrl = isTest 
       ? `http://${rokuIp}:8060/query/device-info`
       : `http://${rokuIp}:8060/keypress/${encodeURIComponent(command)}`;
 
+    // Log request details
     console.log(`[${requestId}] Sending request to Roku:`, {
       url: rokuUrl,
-      method: isTest ? 'GET' : 'POST'
+      method: isTest ? 'GET' : 'POST',
+      command,
+      ip: rokuIp
     });
 
-    // Send request to Roku
+    // Make request to Roku
     const rokuResponse = await fetch(rokuUrl, {
       method: isTest ? 'GET' : 'POST',
       headers: {
         'Host': `${rokuIp}:8060`,
-        'Content-Type': 'application/x-www-form-urlencoded'
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': '*/*'
       },
       body: isTest ? null : '',
       redirect: 'manual'
-    }).catch(error => {
-      console.error(`[${requestId}] Fetch to Roku failed:`, error);
-      throw new Error(`Failed to connect to Roku: ${error.message}`);
     });
 
-    // For non-test commands, just verify the request was accepted
+    // Handle command response
     if (!isTest) {
-      const success = rokuResponse.status >= 200 && rokuResponse.status < 400;
-      
-      if (!success) {
-        let errorText = '';
-        try {
-          errorText = await rokuResponse.text();
-        } catch (e) {
-          // Ignore read errors
-        }
-        
-        return sendError(502, 'Roku command failed', {
-          status: rokuResponse.status,
-          response: errorText || 'No response from Roku'
+      if (rokuResponse.status >= 200 && rokuResponse.status < 400) {
+        return jsonResponse({
+          success: true,
+          command,
+          requestId,
+          timestamp: new Date().toISOString()
         });
+      } else {
+        return jsonResponse({
+          success: false,
+          error: `Roku command failed with status ${rokuResponse.status}`,
+          command,
+          requestId,
+          timestamp: new Date().toISOString()
+        }, 502);
+      }
+    }
+
+    // Handle test response - only reached for test requests
+    try {
+      const text = await rokuResponse.text();
+      
+      if (!rokuResponse.ok) {
+        return jsonResponse({
+          success: false,
+          error: 'Roku test request failed',
+          status: rokuResponse.status,
+          response: text,
+          requestId
+        }, 502);
       }
 
-      return new Response(JSON.stringify({
+      if (!text.includes('device-info')) {
+        return jsonResponse({
+          success: false,
+          error: 'Invalid Roku response',
+          response: text,
+          requestId
+        }, 502);
+      }
+
+      return jsonResponse({
         success: true,
-        command,
-        status: rokuResponse.status,
-        timestamp: new Date().toISOString(),
+        command: 'test',
+        response: text,
         requestId
-      }), {
-        status: 200,
-        headers: commonHeaders
       });
-    }
-
-    // For test requests, verify the response
-    let text = '';
-    try {
-      text = await rokuResponse.text();
     } catch (error) {
-      console.error(`[${requestId}] Failed to read Roku response:`, error);
-      return sendError(502, 'Failed to read Roku response');
+      return jsonResponse({
+        success: false,
+        error: 'Failed to read Roku response',
+        details: error.message,
+        requestId
+      }, 502);
     }
-    
-    if (!rokuResponse.ok) {
-      return sendError(502, 'Roku test request failed', {
-        status: rokuResponse.status,
-        response: text
-      });
-    }
-
-    if (!text.includes('device-info')) {
-      return sendError(502, 'Invalid Roku response', {
-        response: text
-      });
-    }
-
-    return new Response(JSON.stringify({
-      success: true,
-      command: 'test',
-      response: text,
-      timestamp: new Date().toISOString(),
-      requestId
-    }), {
-      status: 200,
-      headers: commonHeaders
-    });
-
   } catch (error) {
     console.error(`[${requestId}] Error:`, error);
-    return sendError(500, `Proxy error: ${error.message}`);
+    return jsonResponse({
+      success: false,
+      error: `Proxy error: ${error.message}`,
+      requestId
+    }, 500);
   }
 };
 

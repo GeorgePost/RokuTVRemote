@@ -247,7 +247,7 @@ class RokuService {
         });
 
         const response = await fetch(proxyUrl, {
-          method: 'GET', // Keep as GET since we're using query parameters
+          method: 'GET',
           headers: {
             'Accept': 'application/json',
             'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -255,17 +255,24 @@ class RokuService {
           }
         });
 
-        // Always try to parse response as JSON
+        // Log the raw response for debugging
+        const responseText = await response.text();
+        console.log('Raw proxy response:', responseText);
+
+        // Try to parse as JSON
         let responseData;
         try {
-          responseData = await response.json();
-          console.log('Proxy response:', responseData);
+          responseData = JSON.parse(responseText);
+          console.log('Parsed proxy response:', responseData);
 
           if (!responseData.success) {
             throw new Error(responseData.error || 'Command failed');
           }
         } catch (parseError) {
-          console.error('Failed to parse proxy response:', parseError);
+          console.error('Failed to parse proxy response:', {
+            error: parseError,
+            rawResponse: responseText
+          });
           throw new Error('Invalid response from proxy server');
         }
       } else {
