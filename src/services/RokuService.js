@@ -247,44 +247,26 @@ class RokuService {
         });
 
         const response = await fetch(proxyUrl, {
-          method: 'GET', // The proxy will convert this to POST for Roku
-          mode: 'cors', // We want CORS for proxy requests
+          method: 'POST', // Use POST to match Roku's expectation
           headers: {
+            'Content-Type': 'application/json',
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache'
           }
         });
 
-        // Check if response is ok
-        const contentType = response.headers.get('content-type');
-        let errorText = '';
-        
+        // Always try to parse response as JSON
+        let responseData;
         try {
-          // Try to get the response text first
-          errorText = await response.text();
-          console.log('Raw proxy response:', errorText);
-          
-          // If it's JSON and the response is not ok, parse it
-          if (contentType?.includes('application/json')) {
-            const data = JSON.parse(errorText);
-            console.log('Proxy response data:', data);
-            
-            if (!response.ok) {
-              throw new Error(data.error || `Command failed: ${response.status}`);
-            }
-            
-            // Log successful response
-            console.log('Proxy success response:', data);
-          } else if (!response.ok) {
-            // If it's not JSON and not ok, throw with the text
-            console.error('Non-JSON error response:', errorText);
-            throw new Error(`Command failed: ${response.status} - ${errorText.substring(0, 100)}...`);
+          responseData = await response.json();
+          console.log('Proxy response:', responseData);
+
+          if (!responseData.success) {
+            throw new Error(responseData.error || 'Command failed');
           }
         } catch (parseError) {
-          console.error('Error parsing proxy response:', parseError);
-          if (!response.ok) {
-            throw new Error(`Command failed: ${response.status} - ${errorText.substring(0, 100)}...`);
-          }
+          console.error('Failed to parse proxy response:', parseError);
+          throw new Error('Invalid response from proxy server');
         }
       } else {
         // Direct HTTP request for non-HTTPS
