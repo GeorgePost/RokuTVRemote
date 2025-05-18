@@ -31,7 +31,7 @@ export default async function handler(req) {
 
   if (!rokuIp) {
     console.error('Missing Roku IP address');
-    return new Response(JSON.stringify({ error: 'Missing Roku IP address' }), { 
+    return new Response(null, { 
       status: 400,
       headers: {
         'Access-Control-Allow-Origin': '*',
@@ -72,18 +72,10 @@ export default async function handler(req) {
       }
     });
 
-    // Get response content if it's a test request
-    let responseContent = null;
-    if (isTest) {
-      responseContent = await rokuResponse.text();
-    }
-
-    // Log the Roku response
+    // Log the Roku response status
     console.log('Roku response:', {
       status: rokuResponse.status,
-      ok: rokuResponse.ok,
-      content: responseContent,
-      headers: Object.fromEntries(rokuResponse.headers.entries())
+      ok: rokuResponse.ok
     });
 
     // If the response wasn't ok, throw an error
@@ -91,13 +83,8 @@ export default async function handler(req) {
       throw new Error(`Roku request failed with status ${rokuResponse.status}`);
     }
 
-    // Send success response
-    return new Response(JSON.stringify({ 
-      success: true,
-      rokuStatus: rokuResponse.status,
-      command: command,
-      deviceInfo: isTest ? responseContent : undefined
-    }), {
+    // For successful responses, just return 200 OK
+    return new Response(null, {
       status: 200,
       headers: {
         'Access-Control-Allow-Origin': '*',
@@ -113,12 +100,7 @@ export default async function handler(req) {
       stack: error.stack
     });
 
-    return new Response(JSON.stringify({ 
-      error: error.message,
-      details: 'Failed to communicate with Roku device',
-      timestamp: new Date().toISOString(),
-      command: command
-    }), { 
+    return new Response(null, { 
       status: 500,
       headers: {
         'Access-Control-Allow-Origin': '*',

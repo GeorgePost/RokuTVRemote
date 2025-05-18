@@ -239,12 +239,15 @@ class RokuService {
           }
         });
 
-        const responseData = await response.json();
-        console.log('Proxy response:', responseData);
-
+        // Check if response is ok before trying to parse JSON
         if (!response.ok) {
-          throw new Error(responseData.error || 'Command failed');
+          const text = await response.text();
+          console.error('Error response:', text);
+          throw new Error('Command failed');
         }
+
+        // For successful responses, we don't need to parse the response
+        // Roku returns empty responses for successful commands
       } else {
         // Direct HTTP request for non-HTTPS
         await fetch(`http://${this.deviceIP}:8060/keypress/${rokuCommand}?_t=${Date.now()}`, {
