@@ -36,11 +36,78 @@ const Remote = () => {
     }
   }, []);
 
+  const getMobileInstructions = () => {
+    // Detect browser
+    const ua = navigator.userAgent;
+    const isSafari = /Safari/i.test(ua) && !/Chrome/i.test(ua);
+    const isChrome = /Chrome/i.test(ua);
+    const isFirefox = /Firefox/i.test(ua);
+    const isSamsung = /SamsungBrowser/i.test(ua);
+
+    if (isSafari) {
+      return `To allow insecure content on Safari (iOS):
+1. Go to Settings -> Safari
+2. Scroll down to "Privacy & Security"
+3. Turn off "Prevent Cross-Site Tracking"
+4. Return to this app and refresh`;
+    } else if (isChrome) {
+      return `To allow insecure content on Chrome (Mobile):
+1. Tap the three dots (⋮) menu
+2. Tap "Site settings"
+3. Tap "Insecure content"
+4. Select "Allow"
+5. Refresh this page`;
+    } else if (isFirefox) {
+      return `To allow insecure content on Firefox (Mobile):
+1. Type "about:config" in the address bar
+2. Search for "security.mixed_content.block_active_content"
+3. Tap to set it to "false"
+4. Return to this app and refresh`;
+    } else if (isSamsung) {
+      return `To allow insecure content on Samsung Browser:
+1. Tap the three dots (⋮) menu
+2. Tap "Settings"
+3. Tap "Privacy and security"
+4. Enable "Allow insecure content"
+5. Refresh this page`;
+    } else {
+      return `To allow insecure content:
+1. Open your browser settings
+2. Look for "Site settings" or "Privacy & Security"
+3. Find and allow "Insecure content" or "Mixed content"
+4. Refresh this page`;
+    }
+  };
+
   const handleDiscovery = async () => {
     try {
       setError('');
       setIsScanning(true);
       setSnackbarOpen(true);
+
+      // Show mobile-specific instructions if needed
+      if (window.location.protocol === 'https:') {
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const useInsecure = window.confirm(
+          'This website needs to communicate with your Roku device.\n\n' +
+          (isMobile ? getMobileInstructions() : 
+          'To allow insecure content on Desktop:\n' +
+          '1. Click the lock icon in the address bar\n' +
+          '2. Click "Site Settings"\n' +
+          '3. Set "Insecure content" to "Allow"\n' +
+          '4. Refresh the page\n\n') +
+          '\nClick OK after changing the settings, or Cancel to exit.'
+        );
+
+        if (!useInsecure) {
+          throw new Error(
+            'Browser security prevents connecting to Roku device over HTTPS.\n\n' +
+            'To use this remote, you must allow insecure content in your browser settings.\n' +
+            'This is safe when using the remote on your local network.'
+          );
+        }
+      }
+
       await RokuService.discoverDevices();
       setIsConnected(true);
       setDeviceInfo(RokuService.getDeviceInfo());
@@ -148,29 +215,37 @@ const Remote = () => {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: 1,
+            gap: 2,
             mb: 3
           }}>
             {/* D-Pad */}
             <Box sx={{ 
               display: 'grid',
               gridTemplateColumns: 'repeat(3, 1fr)',
+              gridTemplateRows: 'repeat(3, 1fr)',
               gap: 1,
-              width: 'fit-content'
+              width: 'fit-content',
+              position: 'relative'
             }}>
+              {/* Empty top-left corner */}
+              <Box />
+              
               {/* Up */}
-              <Box sx={{ gridColumn: '2' }}>
-                <IconButton 
-                  onClick={() => handleButtonClick('up')}
-                  sx={{ 
-                    bgcolor: '#333',
-                    color: 'white',
-                    '&:hover': { bgcolor: '#444' }
-                  }}
-                >
-                  <KeyboardArrowUpIcon />
-                </IconButton>
-              </Box>
+              <IconButton 
+                onClick={() => handleButtonClick('up')}
+                sx={{ 
+                  bgcolor: '#333',
+                  color: 'white',
+                  '&:hover': { bgcolor: '#444' },
+                  width: 48,
+                  height: 48
+                }}
+              >
+                <KeyboardArrowUpIcon />
+              </IconButton>
+              
+              {/* Empty top-right corner */}
+              <Box />
               
               {/* Left */}
               <IconButton 
@@ -178,7 +253,9 @@ const Remote = () => {
                 sx={{ 
                   bgcolor: '#333',
                   color: 'white',
-                  '&:hover': { bgcolor: '#444' }
+                  '&:hover': { bgcolor: '#444' },
+                  width: 48,
+                  height: 48
                 }}
               >
                 <KeyboardArrowLeftIcon />
@@ -190,10 +267,13 @@ const Remote = () => {
                 sx={{ 
                   bgcolor: '#6200EE',
                   color: 'white',
-                  '&:hover': { bgcolor: '#7E3FF2' }
+                  '&:hover': { bgcolor: '#7E3FF2' },
+                  width: 48,
+                  height: 48,
+                  fontSize: '0.875rem'
                 }}
               >
-                <Typography variant="button">OK</Typography>
+                <Typography variant="button" sx={{ fontWeight: 'bold' }}>OK</Typography>
               </IconButton>
               
               {/* Right */}
@@ -202,25 +282,33 @@ const Remote = () => {
                 sx={{ 
                   bgcolor: '#333',
                   color: 'white',
-                  '&:hover': { bgcolor: '#444' }
+                  '&:hover': { bgcolor: '#444' },
+                  width: 48,
+                  height: 48
                 }}
               >
                 <KeyboardArrowRightIcon />
               </IconButton>
               
+              {/* Empty bottom-left corner */}
+              <Box />
+              
               {/* Down */}
-              <Box sx={{ gridColumn: '2' }}>
-                <IconButton 
-                  onClick={() => handleButtonClick('down')}
-                  sx={{ 
-                    bgcolor: '#333',
-                    color: 'white',
-                    '&:hover': { bgcolor: '#444' }
-                  }}
-                >
-                  <KeyboardArrowDownIcon />
-                </IconButton>
-              </Box>
+              <IconButton 
+                onClick={() => handleButtonClick('down')}
+                sx={{ 
+                  bgcolor: '#333',
+                  color: 'white',
+                  '&:hover': { bgcolor: '#444' },
+                  width: 48,
+                  height: 48
+                }}
+              >
+                <KeyboardArrowDownIcon />
+              </IconButton>
+              
+              {/* Empty bottom-right corner */}
+              <Box />
             </Box>
           </Box>
 
