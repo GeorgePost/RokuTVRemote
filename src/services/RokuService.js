@@ -228,12 +228,25 @@ class RokuService {
         await new Promise(resolve => setTimeout(resolve, 100 - timeSinceLastCommand));
       }
 
-      console.log('Executing command:', { command, rokuCommand, isHttps: this.isHttps });
+      // Log the full request details
+      const requestDetails = {
+        originalCommand: command,
+        mappedCommand: rokuCommand,
+        deviceIP: this.deviceIP,
+        isHttps: this.isHttps,
+        timestamp: new Date().toISOString()
+      };
+      console.log('Command request details:', requestDetails);
 
       if (this.isHttps) {
         // Use proxy for HTTPS
-        console.log('Sending command via proxy:', { command, rokuCommand });
-        const response = await fetch(`/api/roku-proxy?ip=${this.deviceIP}&command=${rokuCommand}`, {
+        const proxyUrl = `/api/roku-proxy?ip=${this.deviceIP}&command=${rokuCommand}`;
+        console.log('Sending command via proxy:', {
+          url: proxyUrl,
+          fullUrl: window.location.origin + proxyUrl
+        });
+
+        const response = await fetch(proxyUrl, {
           method: 'GET', // The proxy will convert this to POST for Roku
           mode: 'cors', // We want CORS for proxy requests
           headers: {
@@ -249,6 +262,7 @@ class RokuService {
         try {
           // Try to get the response text first
           errorText = await response.text();
+          console.log('Raw proxy response:', errorText);
           
           // If it's JSON and the response is not ok, parse it
           if (contentType?.includes('application/json')) {
@@ -274,13 +288,19 @@ class RokuService {
         }
       } else {
         // Direct HTTP request for non-HTTPS
-        console.log('Sending direct command to Roku:', { command, rokuCommand });
-        const response = await fetch(`http://${this.deviceIP}:8060/keypress/${rokuCommand}`, {
+        const rokuUrl = `http://${this.deviceIP}:8060/keypress/${rokuCommand}`;
+        console.log('Sending direct command to Roku:', {
+          url: rokuUrl,
+          command: command,
+          mappedCommand: rokuCommand
+        });
+
+        const response = await fetch(rokuUrl, {
           method: 'POST', // Roku requires POST for keypress
           mode: 'no-cors', // Required for direct Roku requests
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
             'Pragma': 'no-cache'
           },
           body: '' // Roku expects an empty body for POST requests
@@ -298,6 +318,9 @@ class RokuService {
   }
 
   mapCommand(command) {
+    // Log the command mapping process
+    console.log('Mapping command:', command);
+    
     const commandMap = {
       power: 'Power',
       home: 'Home',
@@ -322,7 +345,11 @@ class RokuService {
       appletv: 'Launch.551728',
       paramount: 'Launch.31440'
     };
-    return commandMap[command];
+
+    const mappedCommand = commandMap[command];
+    console.log('Command mapped to:', mappedCommand);
+    
+    return mappedCommand;
   }
 
   getDeviceIP() {

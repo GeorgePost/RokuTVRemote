@@ -88,22 +88,44 @@ export default async function handler(req) {
       },
       // For POST requests, send an empty body as required by Roku
       ...(isTest ? {} : { body: '' })
+    }).catch(error => {
+      console.error(`[${requestId}] Fetch to Roku failed:`, {
+        error: error.message,
+        stack: error.stack,
+        url: rokuUrl
+      });
+      throw error;
     });
 
     // Log the complete response details for debugging
     let responseText = '';
     try {
       responseText = await rokuResponse.text();
-      console.log(`[${requestId}] Roku raw response text:`, responseText);
+      console.log(`[${requestId}] Roku raw response:`, {
+        text: responseText,
+        status: rokuResponse.status,
+        statusText: rokuResponse.statusText,
+        headers: Object.fromEntries(rokuResponse.headers.entries()),
+        url: rokuUrl,
+        method: isTest ? 'GET' : 'POST'
+      });
     } catch (e) {
-      console.error(`[${requestId}] Could not read response text:`, e);
+      console.error(`[${requestId}] Could not read response text:`, {
+        error: e.message,
+        status: rokuResponse.status,
+        statusText: rokuResponse.statusText
+      });
     }
 
+    // Log detailed response info
     console.log(`[${requestId}] Roku response details:`, {
       status: rokuResponse.status,
       ok: rokuResponse.ok,
       statusText: rokuResponse.statusText,
-      headers: Object.fromEntries(rokuResponse.headers.entries())
+      headers: Object.fromEntries(rokuResponse.headers.entries()),
+      url: rokuUrl,
+      command: command,
+      isTest: isTest
     });
 
     // If the response wasn't ok, throw an error
@@ -120,7 +142,9 @@ export default async function handler(req) {
       status: rokuResponse.status,
       response: responseText || null,
       timestamp: new Date().toISOString(),
-      requestId
+      requestId,
+      url: rokuUrl,
+      method: isTest ? 'GET' : 'POST'
     };
 
     console.log(`[${requestId}] Sending success response:`, successResponse);
