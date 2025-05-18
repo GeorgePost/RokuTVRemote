@@ -36,16 +36,13 @@ export default async function handler(req) {
 
   try {
     let rokuUrl;
-    let method;
 
-    // For test connection, use device-info endpoint with GET
+    // For test connection, use device-info endpoint
     if (!command || command === 'test') {
       rokuUrl = `http://${rokuIp}:8060/query/device-info`;
-      method = 'GET';
     } else {
-      // For button commands, use keypress endpoint with POST
+      // For button commands, use keypress endpoint
       rokuUrl = `http://${rokuIp}:8060/keypress/${command}`;
-      method = 'POST';
     }
 
     // Add timestamp to prevent caching
@@ -53,7 +50,7 @@ export default async function handler(req) {
 
     // Forward the request to Roku
     const rokuResponse = await fetch(rokuUrl, {
-      method: method,
+      method: command && command !== 'test' ? 'POST' : 'GET',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Cache-Control': 'no-store, no-cache, must-revalidate',

@@ -229,11 +229,10 @@ class RokuService {
       }
 
       if (this.isHttps) {
-        // Use proxy for HTTPS
+        // Use proxy for HTTPS - always use GET to the proxy
         const response = await fetch(`/api/roku-proxy?ip=${this.deviceIP}&command=${rokuCommand}&_t=${Date.now()}`, {
-          method: 'POST',  // Changed to POST for button commands
+          method: 'GET',
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache'
           }
