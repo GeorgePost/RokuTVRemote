@@ -228,10 +228,12 @@ class RokuService {
         await new Promise(resolve => setTimeout(resolve, 100 - timeSinceLastCommand));
       }
 
+      console.log('Executing command:', { command, rokuCommand, isHttps: this.isHttps });
+
       if (this.isHttps) {
         // Use proxy for HTTPS
-        console.log('Sending command to proxy:', { command, rokuCommand });
-        const response = await fetch(`/api/roku-proxy?ip=${this.deviceIP}&command=${rokuCommand}&_t=${Date.now()}`, {
+        console.log('Sending command via proxy:', { command, rokuCommand });
+        const response = await fetch(`/api/roku-proxy?ip=${this.deviceIP}&command=${rokuCommand}`, {
           method: 'GET', // The proxy will convert this to POST for Roku
           mode: 'cors', // We want CORS for proxy requests
           headers: {
@@ -243,8 +245,8 @@ class RokuService {
         // Check if response is ok
         if (!response.ok) {
           const text = await response.text();
-          console.error('Error response:', text);
-          throw new Error('Command failed');
+          console.error('Proxy error response:', text);
+          throw new Error(`Command failed: ${text}`);
         }
 
         // Log successful response

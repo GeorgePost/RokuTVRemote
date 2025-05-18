@@ -99,22 +99,38 @@ const Remote = () => {
   };
 
   const handleButtonClick = async (command) => {
+    console.log('Remote: Sending command:', command);
     try {
       setError('');
+      
+      // Add command timestamp for tracking
+      const timestamp = new Date().toISOString();
+      console.log(`Remote: Command ${command} started at ${timestamp}`);
+      
       await RokuService.sendCommand(command);
+      console.log(`Remote: Command ${command} completed successfully`);
       
       // Update play/pause state for media controls
       if (command === 'play' || command === 'pause') {
         setIsPlaying(!isPlaying);
+        console.log('Remote: Updated playing state:', !isPlaying);
       }
     } catch (error) {
+      console.error('Remote: Command error:', {
+        command,
+        error: error.message,
+        stack: error.stack
+      });
+      
       setError(error.message);
       setSnackbarOpen(true);
       
       // Only disconnect if it's a network error
       if (error.message.includes('Could not connect to Roku device')) {
+        console.log('Remote: Network error detected, disconnecting');
         setIsConnected(false);
         setDeviceInfo(null);
+        RokuService.clearDeviceIP(); // Clear stored device info
       }
     }
   };

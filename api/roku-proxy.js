@@ -3,13 +3,17 @@ export const config = {
 };
 
 export default async function handler(req) {
-  console.log('Proxy request received:', {
+  const requestId = Math.random().toString(36).substring(7);
+  
+  console.log(`[${requestId}] Proxy request received:`, {
     method: req.method,
-    url: req.url
+    url: req.url,
+    headers: Object.fromEntries(req.headers.entries())
   });
 
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
+    console.log(`[${requestId}] Handling CORS preflight request`);
     return new Response(null, {
       status: 204,
       headers: {
@@ -27,10 +31,10 @@ export default async function handler(req) {
   const rokuIp = url.searchParams.get('ip');
   const command = url.searchParams.get('command');
 
-  console.log('Request parameters:', { rokuIp, command });
+  console.log(`[${requestId}] Request parameters:`, { rokuIp, command });
 
   if (!rokuIp) {
-    console.error('Missing Roku IP address');
+    console.error(`[${requestId}] Missing Roku IP address`);
     return new Response(JSON.stringify({ error: 'Missing Roku IP address' }), { 
       status: 400,
       headers: {
@@ -54,10 +58,11 @@ export default async function handler(req) {
       rokuUrl = `http://${rokuIp}:8060/keypress/${encodeURIComponent(command)}`;
     }
 
-    console.log('Sending request to Roku:', {
+    console.log(`[${requestId}] Preparing Roku request:`, {
       url: rokuUrl,
       method: isTest ? 'GET' : 'POST',
-      command: command
+      command: command,
+      isTest: isTest
     });
 
     // Forward the request to Roku
@@ -77,29 +82,35 @@ export default async function handler(req) {
     let responseText = '';
     try {
       responseText = await rokuResponse.text();
+      console.log(`[${requestId}] Roku raw response text:`, responseText);
     } catch (e) {
-      console.log('Could not read response text:', e);
+      console.error(`[${requestId}] Could not read response text:`, e);
     }
 
-    console.log('Roku response:', {
+    console.log(`[${requestId}] Roku response details:`, {
       status: rokuResponse.status,
       ok: rokuResponse.ok,
-      body: responseText,
+      statusText: rokuResponse.statusText,
       headers: Object.fromEntries(rokuResponse.headers.entries())
     });
 
     // If the response wasn't ok, throw an error
     if (!rokuResponse.ok) {
-      throw new Error(`Roku request failed with status ${rokuResponse.status}: ${responseText}`);
+      throw new Error(`Roku request failed with status ${rokuResponse.status} (${rokuResponse.statusText}): ${responseText}`);
     }
 
-    // For successful responses, return 200 OK
-    return new Response(JSON.stringify({ 
+    const successResponse = {
       success: true,
       command: command,
       status: rokuResponse.status,
-      response: responseText || null
-    }), {
+      response: responseText || null,
+      timestamp: new Date().toISOString()
+    };
+
+    console.log(`[${requestId}] Sending success response:`, successResponse);
+
+    // For successful responses, return 200 OK
+    return new Response(JSON.stringify(successResponse), {
       status: 200,
       headers: {
         'Access-Control-Allow-Origin': '*',
@@ -109,15 +120,20 @@ export default async function handler(req) {
       }
     });
   } catch (error) {
-    console.error('Roku proxy error:', {
+    console.error(`[${requestId}] Roku proxy error:`, {
       message: error.message,
       stack: error.stack
     });
 
-    return new Response(JSON.stringify({ 
+    const errorResponse = {
       error: error.message,
-      command: command 
-    }), { 
+      command: command,
+      timestamp: new Date().toISOString()
+    };
+
+    console.log(`[${requestId}] Sending error response:`, errorResponse);
+
+    return new Response(JSON.stringify(errorResponse), { 
       status: 500,
       headers: {
         'Access-Control-Allow-Origin': '*',
