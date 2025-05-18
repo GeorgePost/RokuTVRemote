@@ -115,8 +115,12 @@ class RokuService {
   async testWebSocketConnection(ip) {
     return new Promise((resolve) => {
       try {
-        // Create WebSocket connection
-        const ws = new WebSocket(`ws://${ip}:8060`);
+        // Create WebSocket connection - use proxy for HTTPS
+        const wsUrl = this.isHttps 
+          ? `wss://${window.location.host}/api/roku-proxy?ip=${ip}`
+          : `ws://${ip}:8060`;
+        
+        const ws = new WebSocket(wsUrl);
         
         // Set timeout for connection attempt
         const timeout = setTimeout(() => {
@@ -146,7 +150,7 @@ class RokuService {
           console.error('WebSocket error:', error);
           resolve({
             success: false,
-            error: 'Could not connect to Roku TV via WebSocket. Please try allowing insecure content instead.'
+            error: 'Could not establish connection to your Roku TV. Please check your network connection and try again.'
           });
         };
       } catch (error) {
