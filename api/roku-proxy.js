@@ -50,43 +50,48 @@ export default async function handler(req) {
     if (isTest) {
       rokuUrl = `http://${rokuIp}:8060/query/device-info`;
     } else {
-      // For button commands, use keypress endpoint
-      rokuUrl = `http://${rokuIp}:8060/keypress/${command}`;
+      // For button commands, use keypress endpoint with proper formatting
+      rokuUrl = `http://${rokuIp}:8060/keypress/${encodeURIComponent(command)}`;
     }
-
-    // Add timestamp to prevent caching
-    rokuUrl += `?_t=${Date.now()}`;
 
     console.log('Sending request to Roku:', {
       url: rokuUrl,
-      method: isTest ? 'GET' : 'POST'
+      method: isTest ? 'GET' : 'POST',
+      command: command
     });
 
-    // Forward the request to Roku - GET for device info, POST for commands
+    // Forward the request to Roku
     const rokuResponse = await fetch(rokuUrl, {
       method: isTest ? 'GET' : 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Cache-Control': 'no-store, no-cache, must-revalidate',
         'Pragma': 'no-cache'
-      }
+      },
+      // For POST requests, send an empty body as required by Roku
+      ...(isTest ? {} : { body: '' })
     });
 
-    // Log the Roku response status and body for debugging
+    // Log the complete response details for debugging
+    const responseText = await rokuResponse.text();
     console.log('Roku response:', {
       status: rokuResponse.status,
-      ok: rokuResponse.ok
+      ok: rokuResponse.ok,
+      body: responseText,
+      headers: Object.fromEntries(rokuResponse.headers.entries())
     });
 
     // If the response wasn't ok, throw an error
     if (!rokuResponse.ok) {
-      const errorText = await rokuResponse.text();
-      console.error('Roku error response:', errorText);
-      throw new Error(`Roku request failed with status ${rokuResponse.status}`);
+      throw new Error(`Roku request failed with status ${rokuResponse.status}: ${responseText}`);
     }
 
     // For successful responses, return 200 OK
-    return new Response(JSON.stringify({ success: true }), {
+    return new Response(JSON.stringify({ 
+      success: true,
+      command: command,
+      status: rokuResponse.status 
+    }), {
       status: 200,
       headers: {
         'Access-Control-Allow-Origin': '*',
@@ -101,7 +106,10 @@ export default async function handler(req) {
       stack: error.stack
     });
 
-    return new Response(JSON.stringify({ error: error.message }), { 
+    return new Response(JSON.stringify({ 
+      error: error.message,
+      command: command 
+    }), { 
       status: 500,
       headers: {
         'Access-Control-Allow-Origin': '*',
