@@ -295,18 +295,26 @@ class RokuService {
           mappedCommand: rokuCommand
         });
 
-        const response = await fetch(rokuUrl, {
-          method: 'POST', // Roku requires POST for keypress
-          mode: 'no-cors', // Required for direct Roku requests
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Cache-Control': 'no-store, no-cache, must-revalidate',
-            'Pragma': 'no-cache'
-          },
-          body: '' // Roku expects an empty body for POST requests
-        });
+        try {
+          const response = await fetch(rokuUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: '', // Roku expects an empty body
+            mode: 'no-cors' // Important: This prevents CORS issues but means we can't read the response
+          });
 
-        console.log('Direct command response:', response);
+          // With no-cors mode, we can't read the response details
+          // But if we get here without an error, the request was sent
+          console.log('Direct command sent successfully');
+          
+          // Add a small delay to allow the command to take effect
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (error) {
+          console.error('Direct command failed:', error);
+          throw error;
+        }
       }
 
       this.lastCommandTime = Date.now();

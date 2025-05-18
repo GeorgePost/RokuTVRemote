@@ -29,20 +29,13 @@ export default async function handler(req) {
   };
 
   try {
-    console.log(`[${requestId}] Proxy request received:`, {
-      method: req.method,
-      url: req.url,
-      headers: Object.fromEntries(req.headers.entries())
-    });
-
     // Handle CORS preflight requests
     if (req.method === 'OPTIONS') {
-      console.log(`[${requestId}] Handling CORS preflight request`);
       return new Response(null, {
         status: 204,
         headers: {
           ...commonHeaders,
-          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
           'Access-Control-Allow-Headers': 'Content-Type',
           'Access-Control-Max-Age': '86400'
         }
@@ -53,113 +46,90 @@ export default async function handler(req) {
     const rokuIp = url.searchParams.get('ip');
     const command = url.searchParams.get('command');
 
-    console.log(`[${requestId}] Request parameters:`, { rokuIp, command });
-
     if (!rokuIp) {
       return sendError(400, 'Missing Roku IP address');
     }
 
-    let rokuUrl;
+    // Construct the Roku URL
     const isTest = !command || command === 'test';
+    const rokuUrl = isTest 
+      ? `http://${rokuIp}:8060/query/device-info`
+      : `http://${rokuIp}:8060/keypress/${encodeURIComponent(command)}`;
 
-    // For test connection, use device-info endpoint
-    if (isTest) {
-      rokuUrl = `http://${rokuIp}:8060/query/device-info`;
-    } else {
-      // For button commands, use keypress endpoint with proper formatting
-      rokuUrl = `http://${rokuIp}:8060/keypress/${encodeURIComponent(command)}`;
-    }
-
-    console.log(`[${requestId}] Preparing Roku request:`, {
+    console.log(`[${requestId}] Sending request to Roku:`, {
       url: rokuUrl,
       method: isTest ? 'GET' : 'POST',
-      command: command,
-      isTest: isTest
+      command,
+      ip: rokuIp
     });
 
-    // Forward the request to Roku
-    const rokuResponse = await fetch(rokuUrl, {
-      method: isTest ? 'GET' : 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
-        'Pragma': 'no-cache',
-        'Accept': '*/*'
-      },
-      // For POST requests, send an empty body as required by Roku
-      ...(isTest ? {} : { body: '' })
-    }).catch(error => {
-      console.error(`[${requestId}] Fetch to Roku failed:`, {
-        error: error.message,
-        stack: error.stack,
-        url: rokuUrl
-      });
-      throw error;
-    });
-
-    // Log the complete response details for debugging
-    let responseText = '';
     try {
-      responseText = await rokuResponse.text();
-      console.log(`[${requestId}] Roku raw response:`, {
-        text: responseText,
-        status: rokuResponse.status,
-        statusText: rokuResponse.statusText,
-        headers: Object.fromEntries(rokuResponse.headers.entries()),
+      // Use fetch with specific options for Edge runtime
+      const rokuResponse = await fetch(new URL(rokuUrl), {
+        method: isTest ? 'GET' : 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': '*/*',
+          'Connection': 'keep-alive'
+        },
+        body: isTest ? undefined : '',
+        redirect: 'follow',
+        // Explicitly set these for Edge runtime
+        cache: 'no-store',
+        credentials: 'omit',
+        mode: 'cors',
+        referrerPolicy: 'no-referrer'
+      });
+
+      // For keypress commands, we don't need to wait for or parse the response
+      if (!isTest) {
+        // If we get here, the request was sent
+        return new Response(JSON.stringify({
+          success: true,
+          command,
+          timestamp: new Date().toISOString(),
+          requestId,
+          message: 'Command sent successfully'
+        }), {
+          status: 200,
+          headers: commonHeaders
+        });
+      }
+
+      // For test requests, we need to verify the response
+      const responseText = await rokuResponse.text();
+      
+      if (!rokuResponse.ok) {
+        throw new Error(`Roku responded with status ${rokuResponse.status}`);
+      }
+
+      // Verify it's a valid Roku response
+      if (!responseText.includes('device-info')) {
+        throw new Error('Invalid Roku response');
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        command: 'test',
+        response: responseText,
+        timestamp: new Date().toISOString(),
+        requestId
+      }), {
+        status: 200,
+        headers: commonHeaders
+      });
+
+    } catch (error) {
+      console.error(`[${requestId}] Roku request failed:`, {
+        error: error.message,
         url: rokuUrl,
-        method: isTest ? 'GET' : 'POST'
+        command
       });
-    } catch (e) {
-      console.error(`[${requestId}] Could not read response text:`, {
-        error: e.message,
-        status: rokuResponse.status,
-        statusText: rokuResponse.statusText
-      });
+      
+      return sendError(502, `Failed to communicate with Roku at ${rokuIp}: ${error.message}`);
     }
-
-    // Log detailed response info
-    console.log(`[${requestId}] Roku response details:`, {
-      status: rokuResponse.status,
-      ok: rokuResponse.ok,
-      statusText: rokuResponse.statusText,
-      headers: Object.fromEntries(rokuResponse.headers.entries()),
-      url: rokuUrl,
-      command: command,
-      isTest: isTest
-    });
-
-    // If the response wasn't ok, throw an error
-    if (!rokuResponse.ok) {
-      return sendError(
-        rokuResponse.status,
-        `Roku request failed with status ${rokuResponse.status} (${rokuResponse.statusText}): ${responseText}`
-      );
-    }
-
-    const successResponse = {
-      success: true,
-      command: command,
-      status: rokuResponse.status,
-      response: responseText || null,
-      timestamp: new Date().toISOString(),
-      requestId,
-      url: rokuUrl,
-      method: isTest ? 'GET' : 'POST'
-    };
-
-    console.log(`[${requestId}] Sending success response:`, successResponse);
-
-    // For successful responses, return 200 OK
-    return new Response(JSON.stringify(successResponse), {
-      status: 200,
-      headers: commonHeaders
-    });
   } catch (error) {
-    console.error(`[${requestId}] Roku proxy error:`, {
-      message: error.message,
-      stack: error.stack
-    });
-
-    return sendError(500, error.message);
+    console.error(`[${requestId}] Proxy error:`, error);
+    return sendError(500, `Proxy error: ${error.message}`);
   }
 } 
