@@ -32,28 +32,30 @@ export default async function handler(req) {
 
   try {
     let rokuUrl;
-    let method;
 
     // For test connection, use device-info endpoint
     if (!command || command === 'test') {
       rokuUrl = `http://${rokuIp}:8060/query/device-info`;
-      method = 'GET';
     } else {
       // For commands, use keypress endpoint
       rokuUrl = `http://${rokuIp}:8060/keypress/${command}`;
-      method = 'POST';
     }
 
-    // Forward the request to Roku
+    // Forward the request to Roku - always use GET for ECP
     const rokuResponse = await fetch(rokuUrl, {
-      method: method,
+      method: 'GET',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'
       }
     });
 
+    // If the response wasn't ok, throw an error
+    if (!rokuResponse.ok) {
+      throw new Error(`Roku request failed with status ${rokuResponse.status}`);
+    }
+
     return new Response(null, {
-      status: rokuResponse.status,
+      status: 200,
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -61,7 +63,11 @@ export default async function handler(req) {
       }
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), { 
+    console.error('Roku proxy error:', error);
+    return new Response(JSON.stringify({ 
+      error: error.message,
+      details: 'Failed to communicate with Roku device'
+    }), { 
       status: 500,
       headers: {
         'Access-Control-Allow-Origin': '*',

@@ -230,9 +230,13 @@ class RokuService {
 
       if (this.isHttps) {
         // Use proxy for HTTPS
-        await fetch(`/api/roku-proxy?ip=${this.deviceIP}&command=${rokuCommand}`, {
-          method: 'POST'
+        const response = await fetch(`/api/roku-proxy?ip=${this.deviceIP}&command=${rokuCommand}`, {
+          method: 'GET'  // Changed to GET since Roku's ECP uses GET for commands
         });
+
+        if (!response.ok) {
+          throw new Error('Command failed');
+        }
       } else {
         // Direct HTTP request for non-HTTPS
         await fetch(`http://${this.deviceIP}:8060/keypress/${rokuCommand}`, {
