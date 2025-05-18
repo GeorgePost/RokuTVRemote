@@ -11,7 +11,9 @@ export default async function handler(req) {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Max-Age': '86400'
+        'Access-Control-Max-Age': '86400',
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache'
       }
     });
   }
@@ -25,27 +27,37 @@ export default async function handler(req) {
       status: 400,
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache'
       }
     });
   }
 
   try {
     let rokuUrl;
+    let method;
 
-    // For test connection, use device-info endpoint
+    // For test connection, use device-info endpoint with GET
     if (!command || command === 'test') {
       rokuUrl = `http://${rokuIp}:8060/query/device-info`;
+      method = 'GET';
     } else {
-      // For commands, use keypress endpoint
+      // For button commands, use keypress endpoint with POST
       rokuUrl = `http://${rokuIp}:8060/keypress/${command}`;
+      method = 'POST';
     }
 
-    // Forward the request to Roku - always use GET for ECP
+    // Add timestamp to prevent caching
+    rokuUrl += `?_t=${Date.now()}`;
+
+    // Forward the request to Roku
     const rokuResponse = await fetch(rokuUrl, {
-      method: 'GET',
+      method: method,
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache'
       }
     });
 
@@ -59,7 +71,9 @@ export default async function handler(req) {
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache'
       }
     });
   } catch (error) {
@@ -71,7 +85,9 @@ export default async function handler(req) {
       status: 500,
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache'
       }
     });
   }

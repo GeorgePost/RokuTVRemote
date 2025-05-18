@@ -230,8 +230,13 @@ class RokuService {
 
       if (this.isHttps) {
         // Use proxy for HTTPS
-        const response = await fetch(`/api/roku-proxy?ip=${this.deviceIP}&command=${rokuCommand}`, {
-          method: 'GET'  // Changed to GET since Roku's ECP uses GET for commands
+        const response = await fetch(`/api/roku-proxy?ip=${this.deviceIP}&command=${rokuCommand}&_t=${Date.now()}`, {
+          method: 'POST',  // Changed to POST for button commands
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          }
         });
 
         if (!response.ok) {
@@ -239,11 +244,13 @@ class RokuService {
         }
       } else {
         // Direct HTTP request for non-HTTPS
-        await fetch(`http://${this.deviceIP}:8060/keypress/${rokuCommand}`, {
+        await fetch(`http://${this.deviceIP}:8060/keypress/${rokuCommand}?_t=${Date.now()}`, {
           method: 'POST',
           mode: 'no-cors',
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
           }
         });
       }
