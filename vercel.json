@@ -12,14 +12,34 @@
   ],
   "routes": [
     {
-      "src": "/static/(.*)",
-      "headers": {
-        "cache-control": "public, max-age=31536000, immutable"
-      },
-      "continue": true
+      "src": "^/static/(.*)",
+      "dest": "/static/$1"
     },
     {
-      "src": "/(.*)",
+      "src": "^/favicon.ico",
+      "dest": "/favicon.ico"
+    },
+    {
+      "src": "^/logo192.png",
+      "dest": "/logo192.png"
+    },
+    {
+      "src": "^/logo512.png",
+      "dest": "/logo512.png"
+    },
+    {
+      "src": "^/manifest.json",
+      "dest": "/manifest.json",
+      "headers": {
+        "Content-Type": "application/manifest+json",
+        "cache-control": "public, max-age=0, must-revalidate"
+      }
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "^/(.*)$",
       "dest": "/index.html"
     }
   ]
