@@ -6,6 +6,7 @@ class RokuService {
     this.lastCommandTime = 0;
     this.commandQueue = [];
     this.isProcessingQueue = false;
+    this.ws = null;
   }
 
   async discoverDevices() {
@@ -21,6 +22,27 @@ class RokuService {
           return this.deviceIP;
         }
         this.clearDeviceIP(); // Clear invalid stored IP
+      }
+
+      // Show instructions for HTTPS users
+      if (this.isHttps) {
+        const useInsecure = window.confirm(
+          'This website needs to communicate with your Roku device.\n\n' +
+          'You have two options:\n\n' +
+          '1. Allow insecure content (Recommended):\n' +
+          '   • Click the lock icon in the address bar\n' +
+          '   • Click "Site Settings"\n' +
+          '   • Set "Insecure content" to "Allow"\n' +
+          '   • Refresh the page\n\n' +
+          '2. Use WebSocket connection (Beta):\n' +
+          '   • Click Cancel to try WebSocket mode\n\n' +
+          'Click OK to proceed with option 1, or Cancel for option 2.'
+        );
+
+        if (!useInsecure) {
+          console.log('User chose WebSocket mode');
+          this.useWebSocket = true;
+        }
       }
 
       // Prompt for IP address
@@ -63,6 +85,10 @@ class RokuService {
 
   async testConnection(ip) {
     try {
+      if (this.useWebSocket) {
+        return await this.testWebSocketConnection(ip);
+      }
+
       console.log(`Testing connection to Roku at ${ip}:8060`);
       
       // Try to fetch device info - with no-cors we can only check if the request doesn't throw
@@ -90,11 +116,65 @@ class RokuService {
       };
     } catch (error) {
       console.error(`Connection test failed for ${ip}:`, error);
+      
+      // If HTTP failed and we haven't tried WebSocket yet, try it as fallback
+      if (!this.useWebSocket && this.isHttps) {
+        console.log('HTTP connection failed, trying WebSocket as fallback...');
+        this.useWebSocket = true;
+        return await this.testWebSocketConnection(ip);
+      }
+
       return {
         success: false,
         error: this.getFormattedError(error)
       };
     }
+  }
+
+  async testWebSocketConnection(ip) {
+    return new Promise((resolve) => {
+      try {
+        // Create WebSocket connection
+        const ws = new WebSocket(`ws://${ip}:8060`);
+        
+        // Set timeout for connection attempt
+        const timeout = setTimeout(() => {
+          ws.close();
+          resolve({
+            success: false,
+            error: 'WebSocket connection timed out. Please check your Roku TV is on and connected to the network.'
+          });
+        }, 5000);
+
+        ws.onopen = () => {
+          clearTimeout(timeout);
+          this.ws = ws;
+          resolve({
+            success: true,
+            deviceInfo: {
+              ip: ip,
+              lastConnected: new Date().toISOString(),
+              isTV: true,
+              useWebSocket: true
+            }
+          });
+        };
+
+        ws.onerror = (error) => {
+          clearTimeout(timeout);
+          console.error('WebSocket error:', error);
+          resolve({
+            success: false,
+            error: 'Could not connect to Roku TV via WebSocket. Please try allowing insecure content instead.'
+          });
+        };
+      } catch (error) {
+        resolve({
+          success: false,
+          error: this.getFormattedError(error)
+        });
+      }
+    });
   }
 
   getFormattedError(error) {
@@ -103,7 +183,7 @@ class RokuService {
              '1. The IP address is correct\n' +
              '2. Your Roku is turned on\n' +
              '3. You\'re on the same network as your Roku\n' +
-             '4. You\'ve allowed insecure content in your browser settings';
+             (this.isHttps ? '4. You\'ve allowed insecure content in your browser settings\n' : '');
     }
     return error.message;
   }
@@ -165,14 +245,21 @@ class RokuService {
         await new Promise(resolve => setTimeout(resolve, 100 - timeSinceLastCommand));
       }
 
-      // Send command - with no-cors we can only check if it doesn't throw
-      await fetch(`http://${this.deviceIP}:8060/keypress/${rokuCommand}`, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        }
-      });
+      if (this.useWebSocket && this.ws) {
+        // Send command via WebSocket
+        this.ws.send(JSON.stringify({
+          command: rokuCommand
+        }));
+      } else {
+        // Send command via HTTP
+        await fetch(`http://${this.deviceIP}:8060/keypress/${rokuCommand}`, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        });
+      }
 
       this.lastCommandTime = Date.now();
       return true;
@@ -223,6 +310,10 @@ class RokuService {
     this.deviceInfo = null;
     localStorage.removeItem('rokuDeviceIP');
     localStorage.removeItem('rokuDeviceInfo');
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
   }
 }
 
