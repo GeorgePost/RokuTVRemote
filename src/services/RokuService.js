@@ -7,6 +7,8 @@ class RokuService {
     this.commandQueue = [];
     this.isProcessingQueue = false;
     this.ws = null;
+    // Automatically use WebSocket when on HTTPS
+    this.useWebSocket = this.isHttps;
   }
 
   async discoverDevices() {
@@ -22,27 +24,6 @@ class RokuService {
           return this.deviceIP;
         }
         this.clearDeviceIP(); // Clear invalid stored IP
-      }
-
-      // Show instructions for HTTPS users
-      if (this.isHttps) {
-        const useInsecure = window.confirm(
-          'This website needs to communicate with your Roku device.\n\n' +
-          'You have two options:\n\n' +
-          '1. Allow insecure content (Recommended):\n' +
-          '   • Click the lock icon in the address bar\n' +
-          '   • Click "Site Settings"\n' +
-          '   • Set "Insecure content" to "Allow"\n' +
-          '   • Refresh the page\n\n' +
-          '2. Use WebSocket connection (Beta):\n' +
-          '   • Click Cancel to try WebSocket mode\n\n' +
-          'Click OK to proceed with option 1, or Cancel for option 2.'
-        );
-
-        if (!useInsecure) {
-          console.log('User chose WebSocket mode');
-          this.useWebSocket = true;
-        }
       }
 
       // Prompt for IP address

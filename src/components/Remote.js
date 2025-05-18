@@ -85,29 +85,6 @@ const Remote = () => {
       setIsScanning(true);
       setSnackbarOpen(true);
 
-      // Show mobile-specific instructions if needed
-      if (window.location.protocol === 'https:') {
-        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        const useInsecure = window.confirm(
-          'This website needs to communicate with your Roku device.\n\n' +
-          (isMobile ? getMobileInstructions() : 
-          'To allow insecure content on Desktop:\n' +
-          '1. Click the lock icon in the address bar\n' +
-          '2. Click "Site Settings"\n' +
-          '3. Set "Insecure content" to "Allow"\n' +
-          '4. Refresh the page\n\n') +
-          '\nClick OK after changing the settings, or Cancel to exit.'
-        );
-
-        if (!useInsecure) {
-          throw new Error(
-            'Browser security prevents connecting to Roku device over HTTPS.\n\n' +
-            'To use this remote, you must allow insecure content in your browser settings.\n' +
-            'This is safe when using the remote on your local network.'
-          );
-        }
-      }
-
       await RokuService.discoverDevices();
       setIsConnected(true);
       setDeviceInfo(RokuService.getDeviceInfo());
