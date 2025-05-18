@@ -229,29 +229,26 @@ class RokuService {
       }
 
       if (this.isHttps) {
-        // Use proxy for HTTPS - always use GET to the proxy
+        // Use proxy for HTTPS
         console.log('Sending command to proxy:', { command, rokuCommand });
         const response = await fetch(`/api/roku-proxy?ip=${this.deviceIP}&command=${rokuCommand}&_t=${Date.now()}`, {
-          method: 'GET',
+          method: 'GET', // The proxy will convert this to POST for Roku
           headers: {
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache'
           }
         });
 
-        // Check if response is ok before trying to parse JSON
+        // Check if response is ok
         if (!response.ok) {
           const text = await response.text();
           console.error('Error response:', text);
           throw new Error('Command failed');
         }
-
-        // For successful responses, we don't need to parse the response
-        // Roku returns empty responses for successful commands
       } else {
         // Direct HTTP request for non-HTTPS
         await fetch(`http://${this.deviceIP}:8060/keypress/${rokuCommand}?_t=${Date.now()}`, {
-          method: 'POST',
+          method: 'POST', // Roku requires POST for keypress
           mode: 'no-cors',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',

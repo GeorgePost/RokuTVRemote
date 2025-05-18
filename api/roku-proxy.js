@@ -14,7 +14,7 @@ export default async function handler(req) {
       status: 204,
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
         'Access-Control-Max-Age': '86400',
         'Cache-Control': 'no-store, no-cache, must-revalidate',
@@ -31,7 +31,7 @@ export default async function handler(req) {
 
   if (!rokuIp) {
     console.error('Missing Roku IP address');
-    return new Response(null, { 
+    return new Response(JSON.stringify({ error: 'Missing Roku IP address' }), { 
       status: 400,
       headers: {
         'Access-Control-Allow-Origin': '*',
@@ -62,7 +62,7 @@ export default async function handler(req) {
       method: isTest ? 'GET' : 'POST'
     });
 
-    // Forward the request to Roku
+    // Forward the request to Roku - GET for device info, POST for commands
     const rokuResponse = await fetch(rokuUrl, {
       method: isTest ? 'GET' : 'POST',
       headers: {
@@ -72,7 +72,7 @@ export default async function handler(req) {
       }
     });
 
-    // Log the Roku response status
+    // Log the Roku response status and body for debugging
     console.log('Roku response:', {
       status: rokuResponse.status,
       ok: rokuResponse.ok
@@ -80,15 +80,16 @@ export default async function handler(req) {
 
     // If the response wasn't ok, throw an error
     if (!rokuResponse.ok) {
+      const errorText = await rokuResponse.text();
+      console.error('Roku error response:', errorText);
       throw new Error(`Roku request failed with status ${rokuResponse.status}`);
     }
 
-    // For successful responses, just return 200 OK
-    return new Response(null, {
+    // For successful responses, return 200 OK
+    return new Response(JSON.stringify({ success: true }), {
       status: 200,
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
         'Content-Type': 'application/json',
         'Cache-Control': 'no-store, no-cache, must-revalidate',
         'Pragma': 'no-cache'
@@ -100,7 +101,7 @@ export default async function handler(req) {
       stack: error.stack
     });
 
-    return new Response(null, { 
+    return new Response(JSON.stringify({ error: error.message }), { 
       status: 500,
       headers: {
         'Access-Control-Allow-Origin': '*',
