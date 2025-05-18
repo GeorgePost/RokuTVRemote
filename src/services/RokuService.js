@@ -243,15 +243,35 @@ class RokuService {
         });
 
         // Check if response is ok
-        if (!response.ok) {
-          const text = await response.text();
-          console.error('Proxy error response:', text);
-          throw new Error(`Command failed: ${text}`);
+        const contentType = response.headers.get('content-type');
+        let errorText = '';
+        
+        try {
+          // Try to get the response text first
+          errorText = await response.text();
+          
+          // If it's JSON and the response is not ok, parse it
+          if (contentType?.includes('application/json')) {
+            const data = JSON.parse(errorText);
+            console.log('Proxy response data:', data);
+            
+            if (!response.ok) {
+              throw new Error(data.error || `Command failed: ${response.status}`);
+            }
+            
+            // Log successful response
+            console.log('Proxy success response:', data);
+          } else if (!response.ok) {
+            // If it's not JSON and not ok, throw with the text
+            console.error('Non-JSON error response:', errorText);
+            throw new Error(`Command failed: ${response.status} - ${errorText.substring(0, 100)}...`);
+          }
+        } catch (parseError) {
+          console.error('Error parsing proxy response:', parseError);
+          if (!response.ok) {
+            throw new Error(`Command failed: ${response.status} - ${errorText.substring(0, 100)}...`);
+          }
         }
-
-        // Log successful response
-        const responseData = await response.json();
-        console.log('Proxy response:', responseData);
       } else {
         // Direct HTTP request for non-HTTPS
         console.log('Sending direct command to Roku:', { command, rokuCommand });
