@@ -247,9 +247,9 @@ class RokuService {
         });
 
         const response = await fetch(proxyUrl, {
-          method: 'POST', // Use POST to match Roku's expectation
+          method: 'GET', // Keep as GET since we're using query parameters
           headers: {
-            'Content-Type': 'application/json',
+            'Accept': 'application/json',
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache'
           }

@@ -37,11 +37,16 @@ const handler = async (req) => {
         status: 204,
         headers: {
           ...commonHeaders,
-          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Headers': 'Accept',
           'Access-Control-Max-Age': '86400'
         }
       });
+    }
+
+    // Only allow GET requests
+    if (req.method !== 'GET') {
+      return sendError(405, 'Method not allowed. Use GET.');
     }
 
     // Parse URL and get parameters
@@ -86,6 +91,9 @@ const handler = async (req) => {
       },
       body: isTest ? null : '',
       redirect: 'manual'
+    }).catch(error => {
+      console.error(`[${requestId}] Fetch to Roku failed:`, error);
+      throw new Error(`Failed to connect to Roku: ${error.message}`);
     });
 
     // For non-test commands, just verify the request was accepted
@@ -93,8 +101,16 @@ const handler = async (req) => {
       const success = rokuResponse.status >= 200 && rokuResponse.status < 400;
       
       if (!success) {
+        let errorText = '';
+        try {
+          errorText = await rokuResponse.text();
+        } catch (e) {
+          // Ignore read errors
+        }
+        
         return sendError(502, 'Roku command failed', {
-          status: rokuResponse.status
+          status: rokuResponse.status,
+          response: errorText || 'No response from Roku'
         });
       }
 
@@ -111,16 +127,25 @@ const handler = async (req) => {
     }
 
     // For test requests, verify the response
-    const text = await rokuResponse.text();
+    let text = '';
+    try {
+      text = await rokuResponse.text();
+    } catch (error) {
+      console.error(`[${requestId}] Failed to read Roku response:`, error);
+      return sendError(502, 'Failed to read Roku response');
+    }
     
     if (!rokuResponse.ok) {
       return sendError(502, 'Roku test request failed', {
-        status: rokuResponse.status
+        status: rokuResponse.status,
+        response: text
       });
     }
 
     if (!text.includes('device-info')) {
-      return sendError(502, 'Invalid Roku response');
+      return sendError(502, 'Invalid Roku response', {
+        response: text
+      });
     }
 
     return new Response(JSON.stringify({
