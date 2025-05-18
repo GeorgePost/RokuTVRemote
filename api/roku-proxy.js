@@ -50,7 +50,13 @@ export default async function handler(req) {
       return sendError(400, 'Missing Roku IP address');
     }
 
-    // Construct the Roku URL
+    // Validate IP address format
+    const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+    if (!ipRegex.test(rokuIp)) {
+      return sendError(400, 'Invalid IP address format');
+    }
+
+    // Construct the absolute Roku URL
     const isTest = !command || command === 'test';
     const rokuUrl = isTest 
       ? `http://${rokuIp}:8060/query/device-info`
@@ -64,22 +70,25 @@ export default async function handler(req) {
     });
 
     try {
-      // Use fetch with specific options for Edge runtime
-      const rokuResponse = await fetch(new URL(rokuUrl), {
+      // Create Request object to ensure proper URL handling
+      const rokuRequest = new Request(rokuUrl, {
         method: isTest ? 'GET' : 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
           'Accept': '*/*',
+          'Host': `${rokuIp}:8060`,
           'Connection': 'keep-alive'
         },
         body: isTest ? undefined : '',
         redirect: 'follow',
-        // Explicitly set these for Edge runtime
-        cache: 'no-store',
+        // Important: Don't let the runtime try to resolve the IP as a domain
+        mode: 'no-cors',
         credentials: 'omit',
-        mode: 'cors',
+        cache: 'no-store',
         referrerPolicy: 'no-referrer'
       });
+
+      const rokuResponse = await fetch(rokuRequest);
 
       // For keypress commands, we don't need to wait for or parse the response
       if (!isTest) {
