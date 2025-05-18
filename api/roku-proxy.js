@@ -44,9 +44,10 @@ export default async function handler(req) {
 
   try {
     let rokuUrl;
+    const isTest = !command || command === 'test';
 
     // For test connection, use device-info endpoint
-    if (!command || command === 'test') {
+    if (isTest) {
       rokuUrl = `http://${rokuIp}:8060/query/device-info`;
     } else {
       // For button commands, use keypress endpoint
@@ -58,12 +59,12 @@ export default async function handler(req) {
 
     console.log('Sending request to Roku:', {
       url: rokuUrl,
-      method: command && command !== 'test' ? 'POST' : 'GET'
+      method: isTest ? 'GET' : 'POST'
     });
 
     // Forward the request to Roku
     const rokuResponse = await fetch(rokuUrl, {
-      method: command && command !== 'test' ? 'POST' : 'GET',
+      method: isTest ? 'GET' : 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Cache-Control': 'no-store, no-cache, must-revalidate',
@@ -71,10 +72,18 @@ export default async function handler(req) {
       }
     });
 
+    // Get response content if it's a test request
+    let responseContent = null;
+    if (isTest) {
+      responseContent = await rokuResponse.text();
+    }
+
     // Log the Roku response
     console.log('Roku response:', {
       status: rokuResponse.status,
-      ok: rokuResponse.ok
+      ok: rokuResponse.ok,
+      content: responseContent,
+      headers: Object.fromEntries(rokuResponse.headers.entries())
     });
 
     // If the response wasn't ok, throw an error
@@ -83,7 +92,12 @@ export default async function handler(req) {
     }
 
     // Send success response
-    return new Response(JSON.stringify({ success: true }), {
+    return new Response(JSON.stringify({ 
+      success: true,
+      rokuStatus: rokuResponse.status,
+      command: command,
+      deviceInfo: isTest ? responseContent : undefined
+    }), {
       status: 200,
       headers: {
         'Access-Control-Allow-Origin': '*',
@@ -102,7 +116,8 @@ export default async function handler(req) {
     return new Response(JSON.stringify({ 
       error: error.message,
       details: 'Failed to communicate with Roku device',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      command: command
     }), { 
       status: 500,
       headers: {

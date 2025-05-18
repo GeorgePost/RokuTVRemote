@@ -230,6 +230,7 @@ class RokuService {
 
       if (this.isHttps) {
         // Use proxy for HTTPS - always use GET to the proxy
+        console.log('Sending command to proxy:', { command, rokuCommand });
         const response = await fetch(`/api/roku-proxy?ip=${this.deviceIP}&command=${rokuCommand}&_t=${Date.now()}`, {
           method: 'GET',
           headers: {
@@ -238,8 +239,11 @@ class RokuService {
           }
         });
 
+        const responseData = await response.json();
+        console.log('Proxy response:', responseData);
+
         if (!response.ok) {
-          throw new Error('Command failed');
+          throw new Error(responseData.error || 'Command failed');
         }
       } else {
         // Direct HTTP request for non-HTTPS
