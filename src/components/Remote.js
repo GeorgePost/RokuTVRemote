@@ -102,8 +102,22 @@ const Remote = () => {
             mx: 'auto'
           }}
         >
-          {/* Power Button */}
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+          {/* Device Info */}
+          <Box sx={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            mb: 2 
+          }}>
+            <Typography 
+              variant="caption" 
+              sx={{ 
+                color: 'rgba(255,255,255,0.7)',
+                fontSize: '0.75rem'
+              }}
+            >
+              {deviceInfo?.ip || 'Connected'}
+            </Typography>
             <IconButton 
               onClick={() => handleButtonClick('power')}
               sx={{ 
