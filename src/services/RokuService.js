@@ -70,8 +70,8 @@ class RokuService {
       
       if (this.isHttps) {
         // Use proxy for HTTPS
-        const response = await fetch(`/api/roku-proxy?ip=${ip}&command=Home`, {
-          method: 'POST'
+        const response = await fetch(`/api/roku-proxy?ip=${ip}&command=test`, {
+          method: 'GET'
         });
         
         if (!response.ok) {
